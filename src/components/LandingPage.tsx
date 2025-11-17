@@ -119,7 +119,7 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
 
       if (signInError) throw signInError;
 
-      setSuccessMessage(t('checkEmail') || 'Check your email for the login link!');
+      setSuccessMessage(t('emailMagicLink') || 'Check your email for the login link!');
       setEmail('');
     } catch (err: any) {
       console.error('Email auth error:', err);
@@ -251,7 +251,7 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
             {/* Left - Hero Content */}
             <div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                Slow Code?<br />Supercharged.
+                {t('heroTitle')}<br /> {t('heroSC')}
               </h1>
               <p className="text-lg sm:text-xl text-gray-400 mb-8">
                 {t('heroSubtitle') || 'The AI assistant for problem solvers. Write, debug, and learn with your intelligent coding companion.'}

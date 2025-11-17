@@ -351,7 +351,7 @@ function App() {
   return (
     <div className="flex h-screen bg-gray-800 font-sans">
       <UpdateModal 
-        version="4.1.8" 
+        version="4.2.2" 
         updateDate="November 2025"
       />
 

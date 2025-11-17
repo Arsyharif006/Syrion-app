@@ -23,6 +23,96 @@ interface UserProfile {
 
 type SettingsTab = 'general' | 'account' | 'storage' | 'language' | 'about' | 'logout';
 
+// Skeleton Loading Components
+const SkeletonLine: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`animate-pulse bg-gray-700 rounded ${className}`}></div>
+);
+
+const SkeletonCircle: React.FC<{ size?: string }> = ({ size = 'w-16 h-16' }) => (
+  <div className={`animate-pulse bg-gray-700 rounded-full ${size}`}></div>
+);
+
+const ProfileSkeleton: React.FC = () => (
+  <div className="space-y-6">
+    <div className="flex items-center gap-4">
+      <SkeletonCircle />
+      <div className="flex-1 space-y-2">
+        <SkeletonLine className="h-4 w-48" />
+        <SkeletonLine className="h-3 w-32" />
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <SkeletonLine className="h-4 w-24 mb-2" />
+        <SkeletonLine className="h-10 w-full" />
+      </div>
+      <div>
+        <SkeletonLine className="h-4 w-24 mb-2" />
+        <SkeletonLine className="h-10 w-full" />
+      </div>
+    </div>
+
+    <div>
+      <SkeletonLine className="h-4 w-32 mb-2" />
+      <SkeletonLine className="h-24 w-full" />
+    </div>
+  </div>
+);
+
+const AccountSkeleton: React.FC = () => (
+  <div className="space-y-6">
+    <div>
+      <SkeletonLine className="h-4 w-24 mb-2" />
+      <SkeletonLine className="h-10 w-full" />
+      <SkeletonLine className="h-3 w-48 mt-1" />
+    </div>
+
+    <div className="p-4 bg-gray-900 rounded-lg border border-gray-700/50 space-y-3">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex justify-between">
+          <SkeletonLine className="h-4 w-24" />
+          <SkeletonLine className="h-4 w-32" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const StorageSkeleton: React.FC = () => (
+  <div className="space-y-4">
+    <div>
+      <div className="flex justify-between mb-2">
+        <SkeletonLine className="h-4 w-32" />
+        <SkeletonLine className="h-4 w-24" />
+      </div>
+      <SkeletonLine className="h-2.5 w-full rounded-full" />
+      <SkeletonLine className="h-3 w-20 mt-1" />
+    </div>
+
+    <div className="grid grid-cols-2 gap-4 pt-4">
+      {[1, 2].map((i) => (
+        <div key={i} className="p-4 bg-gray-900 rounded-lg border border-gray-700/50">
+          <SkeletonLine className="h-3 w-24 mb-2" />
+          <SkeletonLine className="h-8 w-16" />
+        </div>
+      ))}
+    </div>
+
+    <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/30">
+      <SkeletonLine className="h-3 w-24 mb-2" />
+      <div className="space-y-2">
+        {[1, 2].map((i) => (
+          <div key={i} className="flex justify-between">
+            <SkeletonLine className="h-3 w-16" />
+            <SkeletonLine className="h-3 w-20" />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
 export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogout }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -86,8 +176,6 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
 
       setUserProfile(profile);
       setFullName(profile.full_name || '');
-      // For now, we'll store nickname and preferences in metadata
-      // You can extend the user_profiles table to include these fields
     } catch (error) {
       console.error('Error loading user profile:', error);
     } finally {
@@ -125,14 +213,13 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
 
       if (error) throw error;
 
-      // Update local state
       setUserProfile(prev => prev ? { ...prev, full_name: fullName } : null);
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: any) {
       console.error('Error saving profile:', error);
-      alert('Failed to save profile: ' + error.message);
+      alert(t('failedToSaveProfile') + ': ' + error.message);
     } finally {
       setIsSaving(false);
     }
@@ -166,14 +253,14 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
       case 'github':
         return 'GitHub';
       case 'email':
-        return 'Email (Magic Link)';
+        return t('emailMagicLink');
       default:
-        return 'Unknown';
+        return t('unknown');
     }
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
+    if (!dateString) return t('never');
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -204,7 +291,6 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
       case 'general':
         return (
           <div className="space-y-6">
-            {/* Profile Section */}
             <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold text-white">{t('generalTitle')}</h3>
@@ -212,29 +298,25 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                 <p className="text-sm text-gray-400 mb-6">{t('generalDescription')}</p>
                 
                 {isLoadingProfile ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  </div>
+                  <ProfileSkeleton />
                 ) : (
                   <div className="space-y-6">
-                    {/* Profile Picture */}
                     {userProfile?.avatar_url && (
                       <div className="flex items-center gap-4">
                         <img 
                           src={userProfile.avatar_url} 
-                          alt="Profile"
+                          alt={t('profilePicture')}
                           className="w-16 h-16 rounded-full border-2 border-gray-700"
                         />
                         <div>
                           <p className="text-sm font-medium text-white">{userProfile.email}</p>
                           <p className="text-xs text-gray-400">
-                            Signed in with {getProviderDisplay(userProfile.provider)}
+                            {t('signedInWith')} {getProviderDisplay(userProfile.provider)}
                           </p>
                         </div>
                       </div>
                     )}
 
-                    {/* Name Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">{t('generalFullName')}</label>
@@ -252,14 +334,13 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                               type="text"
                               value={nickname}
                               onChange={(e) => setNickname(e.target.value)}
-                              placeholder="How AI should call you"
+                              placeholder={t('nicknamePlaceholder')}
                               className="w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2.5 px-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm" 
                             />
-                            <p className="text-xs text-gray-500 mt-1">Coming soon</p>
+                            <p className="text-xs text-gray-500 mt-1">{t('comingSoon')}</p>
                         </div>
                     </div>
 
-                    {/* Preferences */}
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">{t('generalPreferences')}</label>
                         <textarea 
@@ -269,17 +350,15 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                           placeholder={t('generalPreferencesPlaceholder')} 
                           className="w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2.5 px-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Coming soon</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('comingSoon')}</p>
                     </div>
 
-                    {/* Save Success Message */}
                     {saveSuccess && (
                       <div className="p-3 bg-green-600/20 border border-green-500/50 rounded-md">
-                        <p className="text-sm text-green-400">✓ Profile saved successfully!</p>
+                        <p className="text-sm text-green-400">✓ {t('profileSavedSuccess')}</p>
                       </div>
                     )}
 
-                    {/* Save Button */}
                     <div className="flex justify-end">
                       <button 
                         onClick={handleSaveProfile}
@@ -289,10 +368,10 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                         {isSaving ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                            <span>Saving...</span>
+                            <span>{t('saving')}</span>
                           </>
                         ) : (
-                          'Save Changes'
+                          t('saveChanges')
                         )}
                       </button>
                     </div>
@@ -305,7 +384,6 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
       case 'account':
         return (
           <div className="space-y-6">
-            {/* Account Info */}
             <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-white">{t('accountTitle')}</h3>
@@ -313,74 +391,69 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
               <p className="text-sm text-gray-400 mb-6">{t('accountDescription')}</p>
               
               {isLoadingProfile ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
+                <AccountSkeleton />
               ) : userProfile ? (
                 <div className="space-y-6">
-                  {/* Email */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('emailAddress')}</label>
                     <input 
                       type="email" 
                       value={userProfile.email}
                       disabled
                       className="w-full bg-gray-900 border border-gray-700 rounded-md shadow-sm py-2.5 px-3 text-gray-400 text-sm cursor-not-allowed" 
                     />
-                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed at this time</p>
+                    <p className="text-xs text-gray-500 mt-1">{t('emailCannotChange')}</p>
                   </div>
 
-                  {/* Account Details */}
                   <div className="p-4 bg-gray-900 rounded-lg border border-gray-700/50 space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Sign-in Method:</span>
+                      <span className="text-gray-400">{t('signInMethod')}:</span>
                       <span className="text-white font-medium">{getProviderDisplay(userProfile.provider)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Account Created:</span>
+                      <span className="text-gray-400">{t('accountCreated')}:</span>
                       <span className="text-white font-medium">{formatDate(userProfile.created_at)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Last Login:</span>
+                      <span className="text-gray-400">{t('lastLogin')}:</span>
                       <span className="text-white font-medium">{formatDate(userProfile.last_login)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">User ID:</span>
+                      <span className="text-gray-400">{t('userId')}:</span>
                       <span className="text-white font-mono text-xs">{userProfile.id.substring(0, 8)}...</span>
                     </div>
                   </div>
                 </div>
               ) : (
-                <p className="text-gray-400">Failed to load account information</p>
+                <p className="text-gray-400">{t('failedToLoadAccount')}</p>
               )}
             </div>
 
-            {/* Notifications */}
             <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
               <div className="mb-4">
-                <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                <h3 className="text-lg font-semibold text-white">{t('notifications')}</h3>
               </div>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">Email Notifications</p>
-                    <p className="text-xs text-gray-400">Receive updates via email</p>
+                    <p className="text-sm font-medium text-white">{t('emailNotifications')}</p>
+                    <p className="text-xs text-gray-400">{t('emailNotificationsDesc')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <ToggleSwitch enabled={emailNotifications} onChange={setEmailNotifications} />
-                    <span className="text-xs text-gray-500">Coming soon</span>
+                    <span className="text-xs text-gray-500">{t('comingSoon')}</span>
                   </div>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">Push Notifications</p>
-                    <p className="text-xs text-gray-400">Get notified in your browser</p>
+                    <p className="text-sm font-medium text-white">{t('pushNotifications')}</p>
+                    <p className="text-xs text-gray-400">{t('pushNotificationsDesc')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <ToggleSwitch enabled={pushNotifications} onChange={setPushNotifications} />
-                    <span className="text-xs text-gray-500">Coming soon</span>
+                    <span className="text-xs text-gray-500">{t('comingSoon')}</span>
                   </div>
                 </div>
               </div>
@@ -391,29 +464,26 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
        case 'storage':
         return (
           <div className="space-y-6">
-            {/* Storage Stats */}
             <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">Storage Usage</h3>
+                <h3 className="text-lg font-semibold text-white">{t('storageUsage')}</h3>
                 {!isLoadingStats && (
                   <button
                     onClick={loadStorageStats}
                     className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
                   >
-                    Refresh
+                    {t('refresh')}
                   </button>
                 )}
               </div>
               
               {isLoadingStats ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
+                <StorageSkeleton />
               ) : storageStats ? (
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-400">Conversations Data</span>
+                      <span className="text-gray-400">{t('conversationsData')}</span>
                       <span className="text-white font-medium">
                         {storageStats.usedStorageMB.toFixed(2)} MB / {storageStats.maxStorageMB} MB
                       </span>
@@ -425,31 +495,30 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                       ></div>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      {storageStats.usagePercentage.toFixed(1)}% of storage used
+                      {storageStats.usagePercentage.toFixed(1)}% {t('storageUsed')}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-4">
                     <div className="p-4 bg-gray-900 rounded-lg border border-gray-700/50">
-                      <p className="text-xs text-gray-400 mb-1">Total Conversations</p>
+                      <p className="text-xs text-gray-400 mb-1">{t('totalConversations')}</p>
                       <p className="text-2xl font-bold text-white">{storageStats.totalConversations}</p>
                     </div>
                     <div className="p-4 bg-gray-900 rounded-lg border border-gray-700/50">
-                      <p className="text-xs text-gray-400 mb-1">Total Messages</p>
+                      <p className="text-xs text-gray-400 mb-1">{t('totalMessages')}</p>
                       <p className="text-2xl font-bold text-white">{storageStats.totalMessages}</p>
                     </div>
                   </div>
 
-                  {/* Storage Details */}
                   <div className="mt-4 p-4 bg-gray-900/50 rounded-lg border border-gray-700/30">
-                    <p className="text-xs font-medium text-gray-400 mb-2">Storage Details</p>
+                    <p className="text-xs font-medium text-gray-400 mb-2">{t('storageDetails')}</p>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Raw Size:</span>
+                        <span className="text-gray-500">{t('rawSize')}:</span>
                         <span className="text-gray-300">{formatBytes(storageStats.usedStorageBytes)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Available:</span>
+                        <span className="text-gray-500">{t('available')}:</span>
                         <span className="text-gray-300">
                           {(storageStats.maxStorageMB - storageStats.usedStorageMB).toFixed(2)} MB
                         </span>
@@ -457,30 +526,28 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                     </div>
                   </div>
 
-                  {/* Warning if storage is getting full */}
                   {storageStats.usagePercentage > 80 && (
                     <div className="p-4 bg-yellow-600/10 border border-yellow-500/30 rounded-lg">
                       <p className="text-sm text-yellow-400 flex items-center gap-2">
                         <span>⚠️</span>
-                        <span>Storage is {storageStats.usagePercentage.toFixed(0)}% full. Consider deleting old conversations.</span>
+                        <span>{t('storageWarning', { percentage: storageStats.usagePercentage.toFixed(0) })}</span>
                       </p>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-400">
-                  <p>Failed to load storage statistics</p>
+                  <p>{t('failedToLoadStorage')}</p>
                   <button
                     onClick={loadStorageStats}
                     className="mt-2 text-sm text-blue-400 hover:underline"
                   >
-                    Try again
+                    {t('tryAgain')}
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Danger Zone */}
             <div className="p-6 bg-gray-800 border border-red-500/30 rounded-lg">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-red-300">{t('storageTitle')}</h3>
@@ -506,7 +573,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
             
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">Display Language</label>
+                <label className="block text-sm font-medium text-gray-300 mb-3">{t('displayLanguage')}</label>
                 <LanguageSwitcher />
               </div>
             </div>
@@ -518,19 +585,32 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
              <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
                 <h3 className="text-lg font-semibold text-white">{t('aboutTitle', { appName: t('appName') })}</h3>
                 <p className="text-sm text-gray-400 mt-4">{t('aboutDescription')}</p>
-                 <p className="text-xs text-gray-500 mt-4">{t('aboutVersion')}: 4.1.8</p>
+                 <p className="text-xs text-gray-500 mt-4">{t('aboutVersion')}: 4.2.2</p>
                 
-                {/* User Info */}
-                {userProfile && (
+                {isLoadingProfile ? (
                   <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-700/50">
-                    <p className="text-xs font-medium text-gray-400 mb-2">Your Account</p>
+                    <SkeletonLine className="h-3 w-24 mb-2" />
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <SkeletonLine className="h-3 w-16" />
+                        <SkeletonLine className="h-3 w-32" />
+                      </div>
+                      <div className="flex justify-between">
+                        <SkeletonLine className="h-3 w-20" />
+                        <SkeletonLine className="h-3 w-24" />
+                      </div>
+                    </div>
+                  </div>
+                ) : userProfile && (
+                  <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-700/50">
+                    <p className="text-xs font-medium text-gray-400 mb-2">{t('yourAccount')}</p>
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Email:</span>
+                        <span className="text-gray-500">{t('email')}:</span>
                         <span className="text-gray-300">{userProfile.email}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-500">Member since:</span>
+                        <span className="text-gray-500">{t('memberSince')}:</span>
                         <span className="text-gray-300">
                           {new Date(userProfile.created_at).toLocaleDateString('en-US', { 
                             month: 'short', 
@@ -571,34 +651,40 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
             <div className="mb-4">
               <h3 className="text-lg font-semibold text-red-300">{t('logout')}</h3>
             </div>
-            <p className="text-sm text-gray-400 mb-6">Sign out from your account. You can always sign back in anytime.</p>
+            <p className="text-sm text-gray-400 mb-6">{t('logoutDescription')}</p>
             
-            {userProfile && (
+            {isLoadingProfile ? (
               <div className="p-4 bg-gray-900 rounded-lg border border-gray-700/50 mb-6">
-                <p className="text-sm text-gray-400 mb-2">Currently signed in as:</p>
+                <SkeletonLine className="h-3 w-32 mb-2" />
+                <div className="flex items-center gap-3">
+                  <SkeletonCircle size="w-10 h-10" />
+                  <div className="flex-1 space-y-2">
+                    <SkeletonLine className="h-3 w-40" />
+                    <SkeletonLine className="h-3 w-24" />
+                  </div>
+                </div>
+              </div>
+            ) : userProfile && (
+              <div className="p-4 bg-gray-900 rounded-lg border border-gray-700/50 mb-6">
+                <p className="text-sm text-gray-400 mb-2">{t('currentlySignedIn')}:</p>
                 <div className="flex items-center gap-3">
                   {userProfile.avatar_url && (
                     <img 
                       src={userProfile.avatar_url} 
-                      alt="Profile"
+                      alt={t('profilePicture')}
                       className="w-10 h-10 rounded-full border border-gray-700"
                     />
                   )}
                   <div>
                     <p className="text-sm font-medium text-white">{userProfile.email}</p>
                     <p className="text-xs text-gray-400">
-                      via {getProviderDisplay(userProfile.provider)}
+                      {t('via')} {getProviderDisplay(userProfile.provider)}
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="p-4 bg-blue-600/10 border border-blue-500/30 rounded-lg mb-6">
-              <p className="text-sm text-blue-400">
-                ✓ Your conversations will remain saved and will be available when you sign back in.
-              </p>
-            </div>
 
             <button
               onClick={handleLogoutClick}
@@ -633,15 +719,16 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
 
   return (
     <>
-        <div className="flex-1 flex flex-col bg-gray-900">
+        <div className="flex-1 flex flex-col bg-gray-900 h-full overflow-hidden">
           <header className="p-4 border-b border-gray-700/50 flex items-center justify-between flex-shrink-0">
              <h1 className="text-xl font-semibold text-white">{t('settingsTitle')}</h1>
              <button onClick={onClose} className="text-sm text-blue-400 hover:underline flex items-center gap-2">
                 {t('backToChat')}
              </button>
           </header>
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            <aside className="flex-shrink-0 bg-gray-900 md:p-4 border-b md:border-r md:border-b-0 border-gray-700/50 md:w-64">
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+            {/* Sidebar dengan scroll */}
+            <aside className="flex-shrink-0 bg-gray-900 md:p-4 border-b md:border-r md:border-b-0 border-gray-700/50 md:w-64 overflow-y-auto">
                 <nav className="flex flex-row md:flex-col md:space-y-1 overflow-x-auto md:overflow-x-visible px-4 md:px-0 -mx-4 md:mx-0">
                     <NavItem tab="general" label={t('settingsGeneral')} />
                     <NavItem tab="account" label={t('settingsAccount')} />
@@ -651,13 +738,13 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                     <NavItem tab="logout" label={t('logout')} />
                 </nav>
             </aside>
-            <main className="flex-1 overflow-y-auto p-6 md:p-8">
+            {/* Main content dengan scroll - FIXED */}
+            <main className="flex-1 overflow-y-auto p-6 md:p-8 min-h-0">
                 {renderContent()}
             </main>
           </div>
         </div>
         
-        {/* Delete All Modal */}
         <Modal
             isOpen={isDeleteModalOpen}
             onClose={() => setDeleteModalOpen(false)}
@@ -678,7 +765,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
             confirmText={t('logout')}
             isDestructive
         >
-            <p className="text-gray-400">You will be signed out of your account.</p>
+            <p className="text-gray-400">{t('alertlogoutconfirm')}</p>
         </Modal>
     </>
   );
