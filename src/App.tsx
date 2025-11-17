@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Conversation, Message, MessageSender } from '../types';
 import { HiOutlineMenuAlt3 } from 'react-icons/hi';
 import { FiArrowDown } from 'react-icons/fi';
-import * as storage from './services/storageService';
+import { supabase } from './lib/supabaseClient';
+import * as supabaseStorage from './services/supabaseStorageService';
 import { sendMessageToWebhook } from './services/n8nService';
 import { Sidebar } from './components/Sidebar';
 import { ChatInput } from './components/ChatInput';
@@ -18,6 +19,7 @@ function App() {
   
   // ALL STATE DECLARATIONS MUST BE AT THE TOP
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,19 +31,46 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
 
-  // ALL EFFECTS MUST BE DECLARED BEFORE ANY CONDITIONAL RETURN
   // Check authentication status on mount
   useEffect(() => {
-    const authToken = localStorage.getItem('auth-token');
-    if (authToken) {
-      setIsAuthenticated(true);
-    }
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
+  // Load conversations from Supabase
   useEffect(() => {
-    if (isAuthenticated) {
-      setConversations(storage.getConversations());
-    }
+    const loadConversations = async () => {
+      if (isAuthenticated) {
+        try {
+          const convs = await supabaseStorage.getConversations();
+          setConversations(convs);
+        } catch (error) {
+          console.error('Error loading conversations:', error);
+        }
+      }
+    };
+
+    loadConversations();
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -66,7 +95,6 @@ function App() {
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isAuthenticated]);
 
-  // Listen for canvas state changes
   useEffect(() => {
     if (!isAuthenticated) return;
     
@@ -78,7 +106,6 @@ function App() {
     return () => window.removeEventListener('canvas-state-change', handleCanvasChange);
   }, [isAuthenticated]);
 
-  // ALL CALLBACKS AND MEMOIZED VALUES
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -98,35 +125,44 @@ function App() {
   }, []);
 
   const handleDeleteConversation = useCallback(
-    (id: string) => {
-      storage.deleteConversation(id);
-      const updatedConversations = conversations.filter((c) => c.id !== id);
-      setConversations(updatedConversations);
-      if (activeConversationId === id) {
-        setActiveConversationId(null);
+    async (id: string) => {
+      try {
+        await supabaseStorage.deleteConversation(id);
+        const updatedConversations = conversations.filter((c) => c.id !== id);
+        setConversations(updatedConversations);
+        if (activeConversationId === id) {
+          setActiveConversationId(null);
+        }
+      } catch (error) {
+        console.error('Error deleting conversation:', error);
       }
     },
     [conversations, activeConversationId]
   );
 
-  const handleDeleteAllConversations = useCallback(() => {
-    storage.deleteAllConversations();
-    setConversations([]);
-    setActiveConversationId(null);
-    setView('chat');
+  const handleDeleteAllConversations = useCallback(async () => {
+    try {
+      await supabaseStorage.deleteAllConversations();
+      setConversations([]);
+      setActiveConversationId(null);
+      setView('chat');
+    } catch (error) {
+      console.error('Error deleting all conversations:', error);
+    }
   }, []);
 
-  const handleLogout = useCallback(() => {
-    // Remove auth token from localStorage
-    localStorage.removeItem('auth-token');
-    
-    // Reset all state
-    setIsAuthenticated(false);
-    setConversations([]);
-    setActiveConversationId(null);
-    setView('chat');
-    setSidebarOpen(false);
-    setSidebarCollapsed(false);
+  const handleLogout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsAuthenticated(false);
+      setConversations([]);
+      setActiveConversationId(null);
+      setView('chat');
+      setSidebarOpen(false);
+      setSidebarCollapsed(false);
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   }, []);
 
   const handleSendMessage = useCallback(
@@ -171,22 +207,31 @@ function App() {
         }
       });
 
-      const aiResponseText = await sendMessageToWebhook(text);
+      try {
+        const aiResponseText = await sendMessageToWebhook(text);
 
-      setConversations((prev) => {
-        const finalConvs = prev.map((c) => {
-          if (c.id === conversationId) {
-            const finalMessages = c.messages.map((m) =>
-              m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
-            );
-            const finalConversation = { ...c, messages: finalMessages };
-            storage.saveConversation(finalConversation);
-            return finalConversation;
-          }
-          return c;
+        setConversations((prev) => {
+          const finalConvs = prev.map((c) => {
+            if (c.id === conversationId) {
+              const finalMessages = c.messages.map((m) =>
+                m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
+              );
+              const finalConversation = { ...c, messages: finalMessages };
+              
+              // Save to Supabase
+              supabaseStorage.saveConversation(finalConversation).catch(err => {
+                console.error('Error saving conversation:', err);
+              });
+              
+              return finalConversation;
+            }
+            return c;
+          });
+          return finalConvs;
         });
-        return finalConvs;
-      });
+      } catch (error) {
+        console.error('Error sending message:', error);
+      }
 
       setIsLoading(false);
     },
@@ -237,7 +282,12 @@ function App() {
               m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
             );
             const finalConversation = { ...conv, messages: finalMessages };
-            storage.saveConversation(finalConversation);
+            
+            // Save to Supabase
+            supabaseStorage.saveConversation(finalConversation).catch(err => {
+              console.error('Error saving conversation:', err);
+            });
+            
             return finalConversation;
           }
           return conv;
@@ -280,11 +330,19 @@ function App() {
   }, [isSidebarCollapsed, canvasWidth]);
 
   const handleAuthSuccess = useCallback(() => {
-    localStorage.setItem('auth-token', 'dummy-token');
     setIsAuthenticated(true);
   }, []);
 
-  // NOW WE CAN SAFELY DO CONDITIONAL RENDERING
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="flex h-screen bg-gray-800 items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // Show auth page if not authenticated
   if (!isAuthenticated) {
     return <Auth onAuthSuccess={handleAuthSuccess} />;
   }
@@ -293,7 +351,7 @@ function App() {
   return (
     <div className="flex h-screen bg-gray-800 font-sans">
       <UpdateModal 
-        version="4.1.7" 
+        version="4.1.8" 
         updateDate="November 2025"
       />
 

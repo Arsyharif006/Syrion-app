@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FiMenu, FiX, FiArrowRight, FiZap, FiCode, FiMessageSquare, FiCheck, FiGithub, FiAlertCircle } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { useLocalization } from '../contexts/LocalizationContext';
+import { supabase } from '../lib/supabaseClient';
 import icon from './images/fog.png';
 
 interface LandingPageProps {
@@ -46,7 +47,6 @@ const useCounterAnimation = (end: number, duration: number = 2000, suffix: strin
       if (!startTime) startTime = currentTime;
       const progress = Math.min((currentTime - startTime) / duration, 1);
       
-      // Easing function for smooth animation
       const easeOutQuart = 1 - Math.pow(1 - progress, 4);
       const currentCount = startValue + (end - startValue) * easeOutQuart;
       
@@ -69,6 +69,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   // Counter animations
   const activeUsers = useCounterAnimation(500, 2000, 'K+');
@@ -76,36 +77,83 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const languages = useCounterAnimation(15, 2000, '+');
   const uptime = useCounterAnimation(99.9, 2000, '%');
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  // Check for OAuth redirect
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session && !error) {
+        onAuthSuccess();
+      }
+    };
+    checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        onAuthSuccess();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [onAuthSuccess]);
+
+const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      onAuthSuccess();
-    } catch (err) {
-      setError(t('loginFailed') || 'Authentication failed. Please try again.');
+      // Get the current URL without any hash or query params
+      const redirectUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+      
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          emailRedirectTo: redirectUrl,
+          shouldCreateUser: true,
+        },
+      });
+
+      if (signInError) throw signInError;
+
+      setSuccessMessage(t('checkEmail') || 'Check your email for the login link!');
+      setEmail('');
+    } catch (err: any) {
+      console.error('Email auth error:', err);
+      setError(err.message || t('loginFailed') || 'Authentication failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOAuthLogin = (provider: 'google' | 'github') => {
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setIsLoading(true);
-    console.log(`Login with ${provider}`);
+    setError('');
     
-    setTimeout(() => {
+    try {
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (signInError) throw signInError;
+    } catch (err: any) {
+      console.error(`${provider} auth error:`, err);
+      setError(err.message || t('loginFailed') || 'Authentication failed. Please try again.');
       setIsLoading(false);
-      onAuthSuccess();
-    }, 1500);
+    }
   };
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
     const element = document.querySelector(targetId);
     if (element) {
-      const offsetTop = element.getBoundingClientRect().top + window.pageYOffset - 64; // 64px for navbar height
+      const offsetTop = element.getBoundingClientRect().top + window.pageYOffset - 64;
       window.scrollTo({
         top: offsetTop,
         behavior: 'smooth'
@@ -278,6 +326,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
                     placeholder="Enter your email"
                     className="w-full px-4 py-3 bg-[#2a2a2a] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -285,6 +334,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
                   <div className="flex items-center gap-2 p-3 bg-red-900/20 border border-red-700/50 rounded-lg text-red-400 text-sm">
                     <FiAlertCircle className="flex-shrink-0" size={16} />
                     <span>{error}</span>
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="flex items-center gap-2 p-3 bg-green-900/20 border border-green-700/50 rounded-lg text-green-400 text-sm">
+                    <FiCheck className="flex-shrink-0" size={16} />
+                    <span>{successMessage}</span>
                   </div>
                 )}
 

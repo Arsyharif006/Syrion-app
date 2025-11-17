@@ -1,6 +1,6 @@
 // src/utils/storageUtils.ts
 
-import { getConversations } from './storageService';
+import { getStorageStats as getSupabaseStats } from '../services/supabaseStorageService';
 
 export interface StorageStats {
   totalConversations: number;
@@ -11,42 +11,12 @@ export interface StorageStats {
   usagePercentage: number;
 }
 
-const CONVERSATIONS_KEY = 'vibe-ai-conversations';
-
 /**
- * Calculate storage statistics from localStorage
- * TODO: Replace with backend API call when available
+ * Calculate storage statistics from Supabase
  */
-export const calculateStorageStats = (): StorageStats => {
+export const calculateStorageStats = async (): Promise<StorageStats> => {
   try {
-    // Use existing service to get conversations
-    const conversations = getConversations();
-
-    // Calculate total messages
-    const totalMessages = conversations.reduce(
-      (sum, conv) => sum + conv.messages.length, 
-      0
-    );
-
-    // Calculate storage size in bytes using the actual localStorage key
-    const conversationsData = localStorage.getItem(CONVERSATIONS_KEY) || '';
-    const usedStorageBytes = new Blob([conversationsData]).size;
-    const usedStorageMB = usedStorageBytes / (1024 * 1024);
-
-    // Set max storage (can be adjusted based on plan/tier)
-    const maxStorageMB = 100;
-
-    // Calculate percentage
-    const usagePercentage = (usedStorageMB / maxStorageMB) * 100;
-
-    return {
-      totalConversations: conversations.length,
-      totalMessages,
-      usedStorageBytes,
-      usedStorageMB,
-      maxStorageMB,
-      usagePercentage: Math.min(usagePercentage, 100),
-    };
+    return await getSupabaseStats();
   } catch (error) {
     console.error('Error calculating storage stats:', error);
     return {
@@ -85,53 +55,9 @@ export const getStorageColor = (percentage: number): string => {
   return 'bg-red-600';
 };
 
-// ============================================
-// Backend Integration (TODO)
-// ============================================
 /**
- * Fetch storage stats from backend API
- * Uncomment and modify when backend is ready
- */
-/*
-export const fetchStorageStatsFromBackend = async (): Promise<StorageStats> => {
-  try {
-    const response = await fetch('/api/storage/stats', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch storage stats');
-    }
-
-    const data = await response.json();
-    return {
-      totalConversations: data.total_conversations,
-      totalMessages: data.total_messages,
-      usedStorageBytes: data.used_storage_bytes,
-      usedStorageMB: data.used_storage_mb,
-      maxStorageMB: data.max_storage_mb,
-      usagePercentage: data.usage_percentage,
-    };
-  } catch (error) {
-    console.error('Error fetching storage stats from backend:', error);
-    // Fallback to localStorage calculation
-    return calculateStorageStats();
-  }
-};
-*/
-
-/**
- * Wrapper function that can switch between localStorage and backend
- * Modify this when migrating to backend
+ * Wrapper function for getting storage stats
  */
 export const getStorageStats = async (): Promise<StorageStats> => {
-  // For now, use localStorage calculation
-  return calculateStorageStats();
-  
-  // TODO: When backend is ready, uncomment this:
-  // return await fetchStorageStatsFromBackend();
+  return await calculateStorageStats();
 };
