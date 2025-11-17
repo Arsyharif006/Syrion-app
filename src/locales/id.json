@@ -11,9 +11,9 @@
   "copy": "Salin",
   "copied": "Tersalin!",
   "examplePrompts": [
-    "Buatkan landing page sederhana dengan HTML, CSS dan JavaScript",
-    "Buatkan aplikasi todo menggunakan React serta styling desainnya",
-    "Tulis program Pascal untuk mengurutkan array",
+    "Buatkan aplikasi to do list sederhana dengan HTML, CSS dan JavaScript",
+    "Buatkan tampilan landing page sederhana menggunakan React serta responsive desain",
+    "Tulis program Pascal untuk mengurutkan array untuk pemula",
     "Buatkan skrip Python untuk menganalisis data CSV"
   ],
   "loadingMessages": [

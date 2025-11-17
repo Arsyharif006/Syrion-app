@@ -11,9 +11,9 @@
   "copy": "Copy",
   "copied": "Copied!",
   "examplePrompts": [
-    "Create a simple landing page with HTML, CSS, and JavaScript",
-    "Build a todo app using React and styling design",
-    "Write a Pascal program to sort an array",
+    "Create a simple to-do list app with HTML, CSS, and JavaScript",
+    "Create a simple landing page using React with responsive design",
+    "Write a Pascal program to sort an array for beginners",
     "Generate a Python script to analyze CSV data"
   ],
   "loadingMessages": [
