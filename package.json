@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://Arsyharif006.github.io/Syrion-app",
+  "homepage": "https://Arsyharif006.github.io/Syrion-app/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
