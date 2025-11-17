@@ -11,10 +11,10 @@
   "copy": "Salin",
   "copied": "Tersalin!",
   "examplePrompts": [
-    "Tulis hook React untuk mengambil data dengan status loading dan error",
-    "Bagaimana cara menengahkan div menggunakan Tailwind CSS?",
-    "Buat skrip Python untuk mem-parsing file CSV",
-    "Jelaskan perbedaan antara `let`, `const`, dan `var` di JavaScript"
+    "Buatkan landing page sederhana dengan HTML, CSS dan JavaScript",
+    "Buatkan aplikasi todo menggunakan React dan Tailwind CSS",
+    "Tulis program Pascal untuk mengurutkan array",
+    "Buatkan skrip Python untuk menganalisis data CSV"
   ],
   "loadingMessages": [
     "Tunggu sebentar ya, Syrion lagi berpikir...",

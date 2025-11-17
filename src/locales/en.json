@@ -11,10 +11,10 @@
   "copy": "Copy",
   "copied": "Copied!",
   "examplePrompts": [
-    "Write a React hook to fetch data with loading and error states",
-    "How do I center a div using Tailwind CSS?",
-    "Generate a Python script to parse a CSV file",
-    "Explain the difference between `let`, `const`, and `var` in JavaScript"
+    "Create a simple landing page with HTML, CSS, and JavaScript",
+    "Build a todo app using React and Tailwind CSS",
+    "Write a Pascal program to sort an array",
+    "Generate a Python script to analyze CSV data"
   ],
   "loadingMessages": [
     "Hold on, Syrion is thinking...",
