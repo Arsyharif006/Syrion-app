@@ -129,25 +129,26 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
     }
   };
 
-  const handleOAuthLogin = async (provider: 'google' | 'github') => {
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      const { error: signInError } = await supabase.auth.signInWithOAuth({
-        provider: provider,
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
+ const handleOAuthLogin = async (provider: 'google' | 'github') => {
+  setIsLoading(true);
+  setError('');
 
-      if (signInError) throw signInError;
-    } catch (err: any) {
-      console.error(`${provider} auth error:`, err);
-      setError(err.message || t('loginFailed') || 'Authentication failed. Please try again.');
-      setIsLoading(false);
-    }
-  };
+  try {
+    const { error: signInError } = await supabase.auth.signInWithOAuth({
+      provider: provider,
+      options: {
+        redirectTo: `${window.location.origin}/Syrion-app/`,
+      },
+    });
+
+    if (signInError) throw signInError;
+  } catch (err: any) {
+    console.error(`${provider} auth error:`, err);
+    setError(err.message || t('loginFailed') || 'Authentication failed. Please try again.');
+    setIsLoading(false);
+  }
+};
+
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
