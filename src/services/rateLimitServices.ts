@@ -11,7 +11,7 @@ export interface RateLimitInfo {
 }
 
 const RATE_LIMIT_WINDOW = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
-const MAX_MESSAGES_PER_WINDOW = 50; // Sesuaikan dengan kebutuhan
+const MAX_MESSAGES_PER_WINDOW = 30; // Sesuaikan dengan kebutuhan
 
 export const checkRateLimit = async (): Promise<RateLimitInfo> => {
   try {
