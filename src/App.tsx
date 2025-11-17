@@ -5,6 +5,7 @@ import { FiArrowDown } from 'react-icons/fi';
 import { supabase } from './lib/supabaseClient';
 import * as supabaseStorage from './services/supabaseStorageService';
 import { sendMessageToWebhook } from './services/n8nService';
+import { checkRateLimit, incrementMessageCount, getRateLimitStatus, RateLimitInfo } from './services/rateLimitServices';
 import { Sidebar } from './components/Sidebar';
 import { ChatInput } from './components/ChatInput';
 import { ChatMessage } from './components/ChatMessage';
@@ -12,6 +13,7 @@ import { Welcome } from './components/Welcome';
 import { Settings } from './components/Setting';
 import { UpdateModal } from './components/Update';
 import { Auth } from './components/Auth';
+import { RateLimitWarning } from './components/RateLimitWarning';
 import { useLocalization } from './contexts/LocalizationContext';
 
 function App() {
@@ -28,6 +30,14 @@ function App() {
   const [view, setView] = useState<'chat' | 'settings'>('chat');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(0);
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo>({
+    messagesRemaining: 50,
+    maxMessages: 50,
+    resetTime: null,
+    isLimited: false,
+    waitTimeMinutes: 0,
+  });
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +81,31 @@ function App() {
     };
 
     loadConversations();
+  }, [isAuthenticated]);
+
+  // Load and refresh rate limit info
+  useEffect(() => {
+    const loadRateLimit = async () => {
+      if (isAuthenticated) {
+        try {
+          const info = await getRateLimitStatus();
+          setRateLimitInfo(info);
+        } catch (error) {
+          console.error('Error loading rate limit:', error);
+        }
+      }
+    };
+
+    loadRateLimit();
+    
+    // Refresh rate limit info setiap 30 detik
+    const interval = setInterval(() => {
+      if (isAuthenticated) {
+        loadRateLimit();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -160,6 +195,13 @@ function App() {
       setView('chat');
       setSidebarOpen(false);
       setSidebarCollapsed(false);
+      setRateLimitInfo({
+        messagesRemaining: 50,
+        maxMessages: 50,
+        resetTime: null,
+        isLimited: false,
+        waitTimeMinutes: 0,
+      });
     } catch (error) {
       console.error('Error logging out:', error);
     }
@@ -167,6 +209,21 @@ function App() {
 
   const handleSendMessage = useCallback(
     async (text: string) => {
+      // Check rate limit first
+      try {
+        const limitInfo = await checkRateLimit();
+        setRateLimitInfo(limitInfo);
+        
+        if (limitInfo.isLimited) {
+          // Tidak bisa kirim pesan, sudah kena limit
+          console.log('Rate limit reached. Please wait.');
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking rate limit:', error);
+        return;
+      }
+
       setIsLoading(true);
 
       const userMessage: Message = {
@@ -209,6 +266,13 @@ function App() {
 
       try {
         const aiResponseText = await sendMessageToWebhook(text);
+        
+        // Increment message count after successful response
+        await incrementMessageCount();
+        
+        // Update rate limit info
+        const updatedLimitInfo = await getRateLimitStatus();
+        setRateLimitInfo(updatedLimitInfo);
 
         setConversations((prev) => {
           const finalConvs = prev.map((c) => {
@@ -239,6 +303,20 @@ function App() {
   );
 
   const handleEditMessage = useCallback(async (messageId: string, newText: string) => {
+    // Check rate limit before editing
+    try {
+      const limitInfo = await checkRateLimit();
+      setRateLimitInfo(limitInfo);
+      
+      if (limitInfo.isLimited) {
+        console.log('Rate limit reached. Cannot edit message.');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking rate limit:', error);
+      return;
+    }
+
     const conversationId = activeConversationId;
     if (!conversationId || !activeConversation) return;
 
@@ -274,6 +352,13 @@ function App() {
 
     try {
       const aiResponseText = await sendMessageToWebhook(newText);
+      
+      // Increment message count after successful edit response
+      await incrementMessageCount();
+      
+      // Update rate limit info
+      const updatedLimitInfo = await getRateLimitStatus();
+      setRateLimitInfo(updatedLimitInfo);
       
       setConversations(prev => {
         const finalConvs = prev.map(conv => {
@@ -349,7 +434,7 @@ function App() {
 
   // Main App Render (only when authenticated)
   return (
-    <div className="flex h-screen bg-gray-800 font-sans">
+    <div className="flex h-screen bg-gray-800 font-sans overflow-hidden">
       <UpdateModal 
         version="4.2.2" 
         updateDate="November 2025"
@@ -387,7 +472,7 @@ function App() {
           />
         ) : (
           <>
-            <main ref={mainContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative">
+            <main ref={mainContainerRef} className="flex-1 overflow-y-auto scrollbar-hide p-4 md:p-6 lg:p-8 relative">
               <div className="max-w-4xl mx-auto h-full flex flex-col">
                 {activeConversation && activeConversation.messages.length > 0 ? (
                   <div className="flex flex-col gap-6">
@@ -424,7 +509,16 @@ function App() {
             </main>
             <div className="px-4 md:px-6 lg:px-8 pb-4 md:pb-6 lg:pb-8 bg-gray-900">
               <div className="max-w-4xl mx-auto">
-                <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+                <RateLimitWarning
+                  messagesRemaining={rateLimitInfo.messagesRemaining}
+                  maxMessages={rateLimitInfo.maxMessages}
+                  resetTime={rateLimitInfo.resetTime}
+                  isLimited={rateLimitInfo.isLimited}
+                />
+                <ChatInput 
+                  onSendMessage={handleSendMessage} 
+                  isLoading={isLoading || rateLimitInfo.isLimited} 
+                />
               </div>
             </div>
           </>

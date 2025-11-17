@@ -232,5 +232,12 @@
   "never": "Never",
    "checkEmail": "Check your email for the login link!",
   "loginFailed": "Login failed. Please try again.",
-  "alertlogoutconfirm": "You will be signed out of your account."
+  "alertlogoutconfirm": "You will be signed out of your account.",
+  "rateLimitReached": "Message limit reached",
+  "rateLimitMessage": "You've reached your limit of {{max}} messages. Please wait until the limit resets.",
+  "rateLimitReset": "Resets in",
+  "rateLimitWarning": "{{remaining}} of {{max}} messages remaining in this period",
+  "hours": "hours",
+  "minutes": "minutes",
+  "messagesRemaining": "Messages remaining"
 }

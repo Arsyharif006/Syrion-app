@@ -232,5 +232,12 @@
   "heroSC": "Super Cepat.",
   "checkEmail": "Periksa email Anda untuk tautan login!",
   "loginFailed": "Autentikasi gagal. Silakan coba lagi.",
-  "alertlogoutconfirm": "Anda akan keluar dari akun Anda."
+  "alertlogoutconfirm": "Anda akan keluar dari akun Anda.",
+  "rateLimitReached": "Batas pesan tercapai",
+  "rateLimitMessage": "Anda telah mencapai batas {{max}} pesan. Mohon tunggu hingga batas direset.",
+  "rateLimitReset": "Reset dalam",
+  "rateLimitWarning": "{{remaining}} dari {{max}} pesan tersisa dalam periode ini",
+  "hours": "jam",
+  "minutes": "menit",
+  "messagesRemaining": "Pesan tersisa"
 }
