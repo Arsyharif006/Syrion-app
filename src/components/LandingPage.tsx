@@ -119,7 +119,7 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
 
       if (signInError) throw signInError;
 
-      setSuccessMessage(t('emailMagicLink') || 'Check your email for the login link!');
+      setSuccessMessage(t('checkEmail') || 'Check your email for the login link!');
       setEmail('');
     } catch (err: any) {
       console.error('Email auth error:', err);

@@ -225,7 +225,7 @@
   "currentlySignedIn": "Saat ini masuk sebagai",
   "via": "melalui",
   "conversationsSaved": "Percakapan Anda akan tetap tersimpan dan akan tersedia saat Anda masuk kembali.",
-  "emailMagicLink": "Silahkan cek email Anda untuk tautan login!",
+  "emailMagicLink": "Email (Magic Link)",
   "unknown": "Tidak Diketahui",
   "never": "Tidak Pernah",
   "heroTitle": "Kode Lambat?",
@@ -233,5 +233,4 @@
   "checkEmail": "Periksa email Anda untuk tautan login!",
   "loginFailed": "Autentikasi gagal. Silakan coba lagi.",
   "alertlogoutconfirm": "Anda akan keluar dari akun Anda."
-
 }

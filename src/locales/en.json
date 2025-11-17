@@ -225,10 +225,12 @@
   "currentlySignedIn": "Currently signed in as",
   "via": "via",
   "conversationsSaved": "Your conversations will remain saved and will be available when you sign back in.",
-  "emailMagicLink": "Check your email for the login link!",
+  "emailMagicLink": "Email (Magic Link)",
   "heroTitle": "Slow Code?",
   "heroSC": "Supercharged.",
   "unknown": "Unknown",
   "never": "Never",
+   "checkEmail": "Check your email for the login link!",
+  "loginFailed": "Login failed. Please try again.",
   "alertlogoutconfirm": "You will be signed out of your account."
 }
