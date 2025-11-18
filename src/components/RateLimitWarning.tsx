@@ -62,21 +62,28 @@ export const RateLimitWarning: React.FC<RateLimitWarningProps> = ({
   if (isLimited && resetTime) {
     return (
       <div className="mb-4 p-4 bg-gray-800 border border-gray-700 rounded-xl">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <FiClock className="text-gray-300" size={18} />
+        {/* Parent container: Column di mobile, Row di md ke atas */}
+        <div className="flex flex-col md:flex-row md:items-center gap-3 w-full"> 
+          
+          {/* Konten Utama (Icon + Teks) - Selalu dipertahankan horizontal dan mengambil ruang sisa */}
+          <div className="flex items-start gap-3 flex-1">
+            <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <FiClock className="text-gray-300" size={18} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-white mb-1">
+                {t('youveReachedLimit')}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {t('freeMessagesResetAt')} <span className="font-medium text-white">{formatResetTime(resetTime)}</span> 
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-white mb-1">
-              {t('youveReachedLimit')}
-            </h3>
-            <p className="text-sm text-gray-400">
-              {t('freeMessagesResetAt')} <span className="font-medium text-white">{formatResetTime(resetTime)}</span> 
-            </p>
-          </div>
+
+          {/* Tombol Upgrade - W-full di mobile, turun ke bawah dengan mt-3 */}
           <button 
             onClick={handleUpgradeClick}
-            className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+            className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center md:justify-start gap-2 w-full md:w-auto mt-3 md:mt-0 flex-shrink-0"
           >
             <FiZap size={16} />
             {t('upgradeToPro')}
