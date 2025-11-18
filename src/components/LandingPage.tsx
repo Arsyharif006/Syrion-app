@@ -210,7 +210,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
       )}
 
       {/* Navbar */}
-      <nav className={`fixed left-0 right-0 bg-[#1a1a1a]/95 backdrop-blur-sm border-b border-gray-800 z-40 transition-all ${showPromoBanner ? 'top-28 sm:top-[50px]' : 'top-0'}`}>
+      <nav className={`fixed left-0 right-0 bg-[#1a1a1a]/95 backdrop-blur-sm border-b border-gray-800 z-40 transition-all ${showPromoBanner ? 'top-[97px] sm:top-[50px]' : 'top-0'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
