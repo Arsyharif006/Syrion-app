@@ -272,7 +272,7 @@
   "demoVerificationDescription": "Masukkan email terdaftar dan kode verifikasi yang diberikan oleh pengembang untuk mengaktifkan Paket Demo.",
   "verificationCode": "Kode Verifikasi",
   "codeFormat": "Format kode: DEMO-XXXX-XXXX",
-  "activateDemo": "Aktifkan Demo",
+  "activateDemo": "Aktifkan",
   "verifying": "Memverifikasi...",
   "pleaseEnterEmail": "Silakan masukkan email Anda",
   "pleaseEnterCode": "Silakan masukkan kode verifikasi",

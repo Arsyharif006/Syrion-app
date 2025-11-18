@@ -272,7 +272,7 @@
   "demoVerificationDescription": "Enter your registered email and verification code provided by the developer to activate the Demo Plan.",
   "verificationCode": "Verification Code",
   "codeFormat": "Code format: DEMO-XXXX-XXXX",
-  "activateDemo": "Activate Demo",
+  "activateDemo": "Activate",
   "verifying": "Verifying...",
   "pleaseEnterEmail": "Please enter your email",
   "pleaseEnterCode": "Please enter verification code",
