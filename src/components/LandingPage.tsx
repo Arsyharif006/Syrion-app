@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiMenu, FiX, FiArrowRight, FiZap, FiCode, FiMessageSquare, FiCheck, FiGithub, FiAlertCircle } from 'react-icons/fi';
+import { FiMenu, FiX, FiArrowRight, FiZap, FiCode, FiMessageSquare, FiCheck, FiGithub, FiAlertCircle, FiGift, FiCopy } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import { useLocalization } from '../contexts/LocalizationContext';
 import { supabase } from '../lib/supabaseClient';
+import { toast } from 'react-hot-toast';
 import icon from './images/fog.png';
 
 interface LandingPageProps {
@@ -70,6 +71,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPromoBanner, setShowPromoBanner] = useState(true);
   
   // Counter animations
   const activeUsers = useCounterAnimation(500, 2000, 'K+');
@@ -99,7 +101,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
     };
   }, [onAuthSuccess]);
 
-const handleEmailSubmit = async (e: React.FormEvent) => {
+  const handleCopyPromoCode = () => {
+    navigator.clipboard.writeText('DEMO-ACA0-18F5');
+    toast.success('Promo code copied!', {
+      duration: 2000,
+      icon: '📋',
+    });
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
@@ -129,26 +139,25 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
     }
   };
 
- const handleOAuthLogin = async (provider: 'google' | 'github') => {
-  setIsLoading(true);
-  setError('');
+  const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    setIsLoading(true);
+    setError('');
 
-  try {
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: provider,
-      options: {
-        redirectTo: `${window.location.origin}/Syrion-app/`,
-      },
-    });
+    try {
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/Syrion-app/`,
+        },
+      });
 
-    if (signInError) throw signInError;
-  } catch (err: any) {
-    console.error(`${provider} auth error:`, err);
-    setError(err.message || t('loginFailed') || 'Authentication failed. Please try again.');
-    setIsLoading(false);
-  }
-};
-
+      if (signInError) throw signInError;
+    } catch (err: any) {
+      console.error(`${provider} auth error:`, err);
+      setError(err.message || t('loginFailed') || 'Authentication failed. Please try again.');
+      setIsLoading(false);
+    }
+  };
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -165,8 +174,43 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
+      {/* Promo Banner */}
+      {showPromoBanner && (
+        <div className="fixed top-0 left-0 right-0 bg-blue-600 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <FiGift className="text-white flex-shrink-0" size={20} />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm">
+                  <span className="text-white font-semibold">
+                      {t('limitTime') || ' Limited Time Offer!'}
+                  </span>
+                  <span className="text-white/90">
+                   {t('get7') || ' Get 7 days free access with code'}
+                  </span>
+                  <button
+                    onClick={handleCopyPromoCode}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-md font-mono font-bold text-white transition-colors text-xs sm:text-sm w-fit"
+                  >
+                    DEMO-ACA0-18F5
+                     <FiCopy size={14} />
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPromoBanner(false)}
+                className="p-1 text-white/80 hover:text-white transition-colors flex-shrink-0"
+                aria-label="Close banner"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 bg-[#1a1a1a]/95 backdrop-blur-sm border-b border-gray-800 z-50">
+      <nav className={`fixed left-0 right-0 bg-[#1a1a1a]/95 backdrop-blur-sm border-b border-gray-800 z-40 transition-all ${showPromoBanner ? 'top-[100px]' : 'top-0'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -245,7 +289,7 @@ const handleEmailSubmit = async (e: React.FormEvent) => {
       </nav>
 
       {/* Hero Section with Login Form */}
-      <section className="pt-24 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className={`pb-20 px-4 sm:px-6 lg:px-8 transition-all ${showPromoBanner ? 'pt-[180px] sm:pt-[156px]' : 'pt-24'}`}>
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left - Hero Content */}

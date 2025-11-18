@@ -1,7 +1,7 @@
 // src/components/RateLimitWarning.tsx
 
-import React from 'react';
-import { FiClock, FiAlertCircle } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { FiClock, FiZap } from 'react-icons/fi';
 import { useLocalization } from '../contexts/LocalizationContext';
 
 interface RateLimitWarningProps {
@@ -9,6 +9,7 @@ interface RateLimitWarningProps {
   maxMessages: number;
   resetTime: Date | null;
   isLimited: boolean;
+  onUpgradeClick?: () => void;
 }
 
 export const RateLimitWarning: React.FC<RateLimitWarningProps> = ({
@@ -16,56 +17,83 @@ export const RateLimitWarning: React.FC<RateLimitWarningProps> = ({
   maxMessages,
   resetTime,
   isLimited,
+  onUpgradeClick,
 }) => {
   const { t } = useLocalization();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time setiap menit untuk countdown yang akurat
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update setiap 1 menit
+
+    return () => clearInterval(interval);
+  }, []);
 
   const formatResetTime = (date: Date) => {
-    const now = new Date();
-    const diff = date.getTime() - now.getTime();
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    
+    return `${displayHours}:${displayMinutes} ${ampm}`;
+  };
+
+  const getTimeUntilReset = (date: Date) => {
+    const diff = date.getTime() - currentTime.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     
     if (hours > 0) {
-      return `${hours} ${t('hours')} ${minutes} ${t('minutes')}`;
+      return `${hours}h ${minutes}m`;
     }
-    return `${minutes} ${t('minutes')}`;
+    return `${minutes}m`;
   };
 
+  const handleUpgradeClick = () => {
+    if (onUpgradeClick) {
+      onUpgradeClick();
+    }
+  };
+
+  // Alert ketika limit tercapai
   if (isLimited && resetTime) {
     return (
-      <div className="mb-4 p-4 bg-red-600/20 border border-red-500/50 rounded-lg">
+      <div className="mb-4 p-4 bg-gray-800 border border-gray-700 rounded-xl">
         <div className="flex items-start gap-3">
-          <FiAlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-red-400 mb-1">
-              {t('rateLimitReached')}
-            </h3>
-            <p className="text-sm text-red-300 mb-2">
-              {t('rateLimitMessage', { max: maxMessages })}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-red-300">
-              <FiClock size={14} />
-              <span>
-                {t('rateLimitReset')}: {formatResetTime(resetTime)}
-              </span>
-            </div>
+          <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <FiClock className="text-gray-300" size={18} />
           </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-white mb-1">
+              {t('youveReachedLimit')}
+            </h3>
+            <p className="text-sm text-gray-400">
+              {t('freeMessagesResetAt')} <span className="font-medium text-white">{formatResetTime(resetTime)}</span> 
+            </p>
+          </div>
+          <button 
+            onClick={handleUpgradeClick}
+            className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+          >
+            <FiZap size={16} />
+            {t('upgradeToPro')}
+          </button>
         </div>
       </div>
     );
   }
 
-  if (messagesRemaining <= 10) {
+  // Subtle indicator ketika belum limit
+  if (!isLimited && resetTime) {
     return (
-      <div className="mb-4 p-3 bg-yellow-600/20 border border-yellow-500/50 rounded-lg">
-        <div className="flex items-start gap-3">
-          <FiAlertCircle className="text-yellow-400 flex-shrink-0 mt-0.5" size={18} />
-          <div className="flex-1">
-            <p className="text-sm text-yellow-300">
-              {t('rateLimitWarning', { remaining: messagesRemaining, max: maxMessages })}
-            </p>
-          </div>
-        </div>
+      <div className="mb-3 flex items-center justify-center gap-2 text-xs text-gray-500">
+        <FiClock size={12} />
+        <span>
+          {messagesRemaining} {messagesRemaining === 1 ? t('message') : t('messages')} {t('remaining')} · {t('resetsAt')} {formatResetTime(resetTime)}
+        </span>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Conversation, Message, MessageSender } from '../types';
+import { Toaster } from 'react-hot-toast';
 import { HiOutlineMenuAlt3 } from 'react-icons/hi';
 import { FiArrowDown } from 'react-icons/fi';
 import { supabase } from './lib/supabaseClient';
@@ -10,7 +11,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatInput } from './components/ChatInput';
 import { ChatMessage } from './components/ChatMessage';
 import { Welcome } from './components/Welcome';
-import { Settings } from './components/Setting';
+import { SettingsLayout } from './components/settings/SettingsLayout';
 import { UpdateModal } from './components/Update';
 import { Auth } from './components/Auth';
 import { RateLimitWarning } from './components/RateLimitWarning';
@@ -18,7 +19,7 @@ import { useLocalization } from './contexts/LocalizationContext';
 
 function App() {
   const { t } = useLocalization();
-  
+
   // ALL STATE DECLARATIONS MUST BE AT THE TOP
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -30,6 +31,7 @@ function App() {
   const [view, setView] = useState<'chat' | 'settings'>('chat');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(0);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'account' | 'billing' | 'storage' | 'language' | 'about' | 'logout'>('general');
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo>({
     messagesRemaining: 50,
     maxMessages: 50,
@@ -37,7 +39,7 @@ function App() {
     isLimited: false,
     waitTimeMinutes: 0,
   });
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainContainerRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +85,13 @@ function App() {
     loadConversations();
   }, [isAuthenticated]);
 
+  const handleOpenBilling = useCallback(() => {
+    setSettingsTab('billing');
+    setView('settings');
+  }, []);
+
+
+
   // Load and refresh rate limit info
   useEffect(() => {
     const loadRateLimit = async () => {
@@ -97,14 +106,14 @@ function App() {
     };
 
     loadRateLimit();
-    
+
     // Refresh rate limit info setiap 30 detik
     const interval = setInterval(() => {
       if (isAuthenticated) {
         loadRateLimit();
       }
     }, 30000);
-    
+
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
@@ -116,7 +125,7 @@ function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+
     const container = mainContainerRef.current;
     if (!container) return;
 
@@ -132,7 +141,7 @@ function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    
+
     const handleCanvasChange = ((e: CustomEvent) => {
       setCanvasWidth(e.detail.isOpen ? e.detail.width : 0);
     }) as EventListener;
@@ -213,7 +222,7 @@ function App() {
       try {
         const limitInfo = await checkRateLimit();
         setRateLimitInfo(limitInfo);
-        
+
         if (limitInfo.isLimited) {
           // Tidak bisa kirim pesan, sudah kena limit
           console.log('Rate limit reached. Please wait.');
@@ -266,10 +275,10 @@ function App() {
 
       try {
         const aiResponseText = await sendMessageToWebhook(text);
-        
+
         // Increment message count after successful response
         await incrementMessageCount();
-        
+
         // Update rate limit info
         const updatedLimitInfo = await getRateLimitStatus();
         setRateLimitInfo(updatedLimitInfo);
@@ -281,12 +290,12 @@ function App() {
                 m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
               );
               const finalConversation = { ...c, messages: finalMessages };
-              
+
               // Save to Supabase
               supabaseStorage.saveConversation(finalConversation).catch(err => {
                 console.error('Error saving conversation:', err);
               });
-              
+
               return finalConversation;
             }
             return c;
@@ -307,7 +316,7 @@ function App() {
     try {
       const limitInfo = await checkRateLimit();
       setRateLimitInfo(limitInfo);
-      
+
       if (limitInfo.isLimited) {
         console.log('Rate limit reached. Cannot edit message.');
         return;
@@ -352,14 +361,14 @@ function App() {
 
     try {
       const aiResponseText = await sendMessageToWebhook(newText);
-      
+
       // Increment message count after successful edit response
       await incrementMessageCount();
-      
+
       // Update rate limit info
       const updatedLimitInfo = await getRateLimitStatus();
       setRateLimitInfo(updatedLimitInfo);
-      
+
       setConversations(prev => {
         const finalConvs = prev.map(conv => {
           if (conv.id === conversationId) {
@@ -367,12 +376,12 @@ function App() {
               m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
             );
             const finalConversation = { ...conv, messages: finalMessages };
-            
+
             // Save to Supabase
             supabaseStorage.saveConversation(finalConversation).catch(err => {
               console.error('Error saving conversation:', err);
             });
-            
+
             return finalConversation;
           }
           return conv;
@@ -404,10 +413,10 @@ function App() {
 
   const mainContentStyle = useMemo(() => {
     if (window.innerWidth < 768) return {};
-    
+
     const sidebarWidth = isSidebarCollapsed ? 64 : 256;
     const rightSpace = canvasWidth;
-    
+
     return {
       marginRight: `${rightSpace}%`,
       transition: 'margin-right 0.2s ease-in-out'
@@ -435,8 +444,52 @@ function App() {
   // Main App Render (only when authenticated)
   return (
     <div className="flex h-screen bg-gray-800 font-sans overflow-hidden">
-      <UpdateModal 
-        version="4.2.2" 
+
+         <Toaster
+        position="top-right"
+        toastOptions={{
+          // Default options
+          duration: 4000,
+          style: {
+            background: '#1F2937',
+            color: '#fff',
+            border: '1px solid #374151',
+          },
+          // Success
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#10B981',
+              secondary: '#fff',
+            },
+            style: {
+              background: '#1F2937',
+              border: '1px solid #10B981',
+            },
+          },
+          // Error
+          error: {
+            duration: 4000,
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#fff',
+            },
+            style: {
+              background: '#1F2937',
+              border: '1px solid #EF4444',
+            },
+          },
+          // Loading
+          loading: {
+            style: {
+              background: '#1F2937',
+              border: '1px solid #3B82F6',
+            },
+          },
+        }}
+      />
+      <UpdateModal
+        version="4.2.2"
         updateDate="November 2025"
       />
 
@@ -458,17 +511,18 @@ function App() {
       <div className="flex-1 flex flex-col bg-gray-900 text-white overflow-hidden" style={mainContentStyle}>
         <header className="md:hidden flex items-center justify-between p-4 bg-gray-900 text-white border-b border-gray-700/50 flex-shrink-0">
           <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-gray-300 hover:text-white">
-              <HiOutlineMenuAlt3 />
+            <HiOutlineMenuAlt3 />
           </button>
           <h1 className="text-lg font-semibold truncate">{activeConversation?.title || t('newChat')}</h1>
           <div className="w-6"></div>
         </header>
 
         {view === 'settings' ? (
-          <Settings 
-            onClose={() => setView('chat')} 
+          <SettingsLayout
+            onClose={() => setView('chat')}
             onDeleteAll={handleDeleteAllConversations}
             onLogout={handleLogout}
+            initialTab={settingsTab}
           />
         ) : (
           <>
@@ -497,7 +551,7 @@ function App() {
                 <button
                   onClick={scrollToBottom}
                   className="fixed bottom-24 right-8 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-all duration-300 z-50"
-                  style={{ 
+                  style={{
                     right: canvasWidth > 0 ? `calc(${canvasWidth}% + 2rem)` : '2rem',
                     transition: 'right 0.2s ease-in-out'
                   }}
@@ -514,10 +568,11 @@ function App() {
                   maxMessages={rateLimitInfo.maxMessages}
                   resetTime={rateLimitInfo.resetTime}
                   isLimited={rateLimitInfo.isLimited}
+                  onUpgradeClick={handleOpenBilling}
                 />
-                <ChatInput 
-                  onSendMessage={handleSendMessage} 
-                  isLoading={isLoading || rateLimitInfo.isLimited} 
+                <ChatInput
+                  onSendMessage={handleSendMessage}
+                  isLoading={isLoading || rateLimitInfo.isLimited}
                 />
               </div>
             </div>

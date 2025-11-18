@@ -4,6 +4,7 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 import { Modal } from './Modal';
 import { getStorageStats, formatBytes, getStorageColor, StorageStats } from '../services/storageutils';
 import { supabase } from '../lib/supabaseClient';
+import { FiCheck, FiZap, FiClock } from 'react-icons/fi';
 
 interface SettingsProps {
   onClose: () => void;
@@ -21,7 +22,13 @@ interface UserProfile {
   last_login: string | null;
 }
 
-type SettingsTab = 'general' | 'account' | 'storage' | 'language' | 'about' | 'logout';
+interface BillingInfo {
+  plan: 'free' | 'demo' | 'pro';
+  expires_at: string | null;
+  auto_renew: boolean;
+}
+
+type SettingsTab = 'general' | 'account' | 'billing' | 'storage' | 'language' | 'about' | 'logout';
 
 // Skeleton Loading Components
 const SkeletonLine: React.FC<{ className?: string }> = ({ className = '' }) => (
@@ -121,6 +128,8 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(false);
   const { t } = useLocalization();
   
   // Form states for general settings
@@ -134,10 +143,26 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(false);
 
+  useEffect(() => {
+  const handleOpenBilling = () => {
+    setActiveTab('billing');
+  };
+
+  window.addEventListener('open-billing-tab', handleOpenBilling);
+  return () => window.removeEventListener('open-billing-tab', handleOpenBilling);
+}, []);
+
   // Load user profile on mount
   useEffect(() => {
     loadUserProfile();
   }, []);
+
+  // Load billing info when billing tab is active
+  useEffect(() => {
+    if (activeTab === 'billing') {
+      loadBillingInfo();
+    }
+  }, [activeTab]);
 
   // Load storage stats when storage tab is active
   useEffect(() => {
@@ -180,6 +205,76 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
       console.error('Error loading user profile:', error);
     } finally {
       setIsLoadingProfile(false);
+    }
+  };
+
+  const loadBillingInfo = async () => {
+    setIsLoadingBilling(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('user_billing')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading billing info:', error);
+        return;
+      }
+
+      if (data) {
+        setBillingInfo(data);
+      } else {
+        // Create default billing record
+        const { data: newBilling, error: insertError } = await supabase
+          .from('user_billing')
+          .insert({
+            user_id: user.id,
+            plan: 'free',
+            auto_renew: false,
+          })
+          .select()
+          .single();
+
+        if (!insertError && newBilling) {
+          setBillingInfo(newBilling);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading billing info:', error);
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  };
+
+  const handleSwitchToDemo = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Set demo expires in 7 days
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const { error } = await supabase
+        .from('user_billing')
+        .update({
+          plan: 'demo',
+          expires_at: expiresAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      await loadBillingInfo();
+      alert(t('demoActivated'));
+    } catch (error: any) {
+      console.error('Error switching to demo:', error);
+      alert(t('failedToActivateDemo') + ': ' + error.message);
     }
   };
 
@@ -269,6 +364,24 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getPlanName = (plan: string) => {
+    switch (plan) {
+      case 'free': return t('freePlan');
+      case 'demo': return t('demoPlan');
+      case 'pro': return t('proPlan');
+      default: return plan;
+    }
+  };
+
+  const getPlanColor = (plan: string) => {
+    switch (plan) {
+      case 'free': return 'text-gray-400';
+      case 'demo': return 'text-blue-400';
+      case 'pro': return 'text-purple-400';
+      default: return 'text-gray-400';
+    }
   };
 
   const ToggleSwitch: React.FC<{ enabled: boolean; onChange: (value: boolean) => void }> = ({ enabled, onChange }) => (
@@ -455,6 +568,204 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                     <ToggleSwitch enabled={pushNotifications} onChange={setPushNotifications} />
                     <span className="text-xs text-gray-500">{t('comingSoon')}</span>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'billing':
+        return (
+          <div className="space-y-6">
+            {/* Current Plan */}
+            <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-white">{t('currentPlan')}</h3>
+              </div>
+              
+              {isLoadingBilling ? (
+                <div className="space-y-3">
+                  <SkeletonLine className="h-6 w-32" />
+                  <SkeletonLine className="h-4 w-full" />
+                </div>
+              ) : billingInfo ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-2xl font-bold ${getPlanColor(billingInfo.plan)}`}>
+                      {getPlanName(billingInfo.plan)}
+                    </span>
+                    {billingInfo.plan === 'demo' && (
+                      <span className="px-2 py-1 bg-blue-600/20 text-blue-400 text-xs font-medium rounded">
+                        {t('trial')}
+                      </span>
+                    )}
+                  </div>
+
+                  {billingInfo.expires_at && (
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <FiClock size={14} />
+                      <span>
+                        {t('expiresOn')}: {formatDate(billingInfo.expires_at)}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/30">
+                    <p className="text-xs font-medium text-gray-400 mb-2">{t('planFeatures')}</p>
+                    <ul className="space-y-2">
+                      {billingInfo.plan === 'free' && (
+                        <>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('freeFeature1')}
+                          </li>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('freeFeature2')}
+                          </li>
+                        </>
+                      )}
+                      {billingInfo.plan === 'demo' && (
+                        <>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('demoFeature1')}
+                          </li>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('demoFeature2')}
+                          </li>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('demoFeature3')}
+                          </li>
+                        </>
+                      )}
+                      {billingInfo.plan === 'pro' && (
+                        <>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('proFeature1')}
+                          </li>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('proFeature2')}
+                          </li>
+                          <li className="flex items-center gap-2 text-sm text-gray-300">
+                            <FiCheck className="text-green-400" size={16} />
+                            {t('proFeature3')}
+                          </li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400">{t('failedToLoadBilling')}</p>
+              )}
+            </div>
+
+            {/* Available Plans */}
+            <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-white">{t('availablePlans')}</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Free Plan */}
+                <div className="p-5 bg-gray-900 border border-gray-700 rounded-xl">
+                  <div className="mb-3">
+                    <h4 className="text-lg font-semibold text-white">{t('freePlan')}</h4>
+                    <p className="text-2xl font-bold text-gray-400 mt-1">$0</p>
+                  </div>
+                  <ul className="space-y-2 mb-4">
+                    <li className="flex items-start gap-2 text-sm text-gray-400">
+                      <FiCheck className="text-gray-500 flex-shrink-0 mt-0.5" size={16} />
+                      <span>50 {t('messagesPerPeriod')}</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-400">
+                      <FiCheck className="text-gray-500 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('basicFeatures')}</span>
+                    </li>
+                  </ul>
+                  <button
+                    disabled
+                    className="w-full py-2 px-4 bg-gray-700 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed"
+                  >
+                    {t('currentPlan')}
+                  </button>
+                </div>
+
+                {/* Demo Plan */}
+                <div className="p-5 bg-gradient-to-br from-blue-600/10 to-blue-600/5 border border-blue-500/30 rounded-xl">
+                  <div className="mb-3">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-lg font-semibold text-white">{t('demoPlan')}</h4>
+                      <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-xs font-medium rounded">
+                        7 {t('days')}
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-400 mt-1">{t('free')}</p>
+                  </div>
+                  <ul className="space-y-2 mb-4">
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-blue-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>200 {t('messagesPerPeriod')}</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-blue-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('prioritySupport')}</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-blue-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('allFeatures')}</span>
+                    </li>
+                  </ul>
+                  <button
+                    onClick={handleSwitchToDemo}
+                    disabled={billingInfo?.plan === 'demo' || billingInfo?.plan === 'pro'}
+                    className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {billingInfo?.plan === 'demo' ? t('currentPlan') : t('tryDemo')}
+                  </button>
+                </div>
+
+                {/* Pro Plan */}
+                <div className="p-5 bg-gradient-to-br from-purple-600/10 to-purple-600/5 border border-purple-500/30 rounded-xl relative overflow-hidden">
+                  <div className="absolute top-2 right-2">
+                    <span className="px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded">
+                      {t('comingSoon')}
+                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <h4 className="text-lg font-semibold text-white">{t('proPlan')}</h4>
+                    <p className="text-2xl font-bold text-purple-400 mt-1">$9.99<span className="text-sm text-gray-400">/{t('month')}</span></p>
+                  </div>
+                  <ul className="space-y-2 mb-4">
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-purple-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('unlimitedMessages')}</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-purple-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('priorityResponseTime')}</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-purple-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('earlyAccessFeatures')}</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <FiCheck className="text-purple-400 flex-shrink-0 mt-0.5" size={16} />
+                      <span>{t('premiumSupport')}</span>
+                    </li>
+                  </ul>
+                  <button
+                    disabled
+                    className="w-full py-2 px-4 bg-gray-700 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <FiZap size={16} />
+                    {t('upgradeToPro')}
+                  </button>
                 </div>
               </div>
             </div>
@@ -728,10 +1039,11 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
           </header>
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
             {/* Sidebar dengan scroll */}
-            <aside className="flex-shrink-0 bg-gray-900 md:p-4 border-b md:border-r md:border-b-0 border-gray-700/50 md:w-64 overflow-y-auto">
-                <nav className="flex flex-row md:flex-col md:space-y-1 overflow-x-auto md:overflow-x-visible px-4 md:px-0 -mx-4 md:mx-0">
+            <aside className="flex-shrink-0 bg-gray-900 md:p-4 border-b md:border-r md:border-b-0 border-gray-700/50 md:w-64 overflow-y-auto scrollbar-hide">
+                <nav className="flex flex-row md:flex-col md:space-y-1 overflow-x-auto scrollbar-hide md:overflow-x-visible px-4 md:px-0 -mx-4 md:mx-0">
                     <NavItem tab="general" label={t('settingsGeneral')} />
                     <NavItem tab="account" label={t('settingsAccount')} />
+                    <NavItem tab="billing" label={t('settingsBilling')} />
                     <NavItem tab="storage" label={t('settingsStorage')} />
                     <NavItem tab="language" label={t('settingsLanguage')} />
                     <NavItem tab="about" label={t('settingsAbout')} />
@@ -739,7 +1051,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose, onDeleteAll, onLogo
                 </nav>
             </aside>
             {/* Main content dengan scroll - FIXED */}
-            <main className="flex-1 overflow-y-auto p-6 md:p-8 min-h-0">
+            <main className="flex-1 overflow-y-auto scrollbar-hide p-6 md:p-8 min-h-0">
                 {renderContent()}
             </main>
           </div>
