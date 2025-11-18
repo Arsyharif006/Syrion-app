@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Message, MessageSender } from '../../types';
-import { FiUser, FiRefreshCw, FiEdit3, FiCheck, FiX, FiMaximize2 } from 'react-icons/fi';
+import { FiUser, FiRefreshCw, FiEdit3, FiCheck, FiX, FiMaximize2, FiCode } from 'react-icons/fi';
 import { CodeBlock } from './CodeBlock';
 import { Table } from './Table';
 import { VibeCodingCanvas } from './VibeCodingCanvas';
@@ -18,6 +18,12 @@ interface ChatMessageProps {
 interface CodeFile {
   language: string;
   content: string;
+}
+
+interface ParsedCodeBlock {
+  language: string;
+  code: string;
+  index: number;
 }
 
 // ✅ Global edit manager
@@ -40,148 +46,139 @@ const getRandomLoadingMessage = (loadingMessages: string[]): string => {
   return loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
 };
 
+
 const parseAiResponse = (text: string) => {
   if (!text) return [];
 
   const components: { type: 'text' | 'code' | 'table'; content: any }[] = [];
-
-  const tableRegex = /(\|[^\n]+\|\n\|[\s:|-]+\|\n(?:\|[^\n]+\|\n?)+)/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = tableRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      const beforeText = text.substring(lastIndex, match.index).trim();
-      if (beforeText) {
-        const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-        let codeMatch;
-        let textLastIndex = 0;
-
-        while ((codeMatch = codeBlockRegex.exec(beforeText)) !== null) {
-          if (codeMatch.index > textLastIndex) {
-            const textPart = beforeText.substring(textLastIndex, codeMatch.index).trim();
-            if (textPart) {
-              const cleanedText = textPart
-                .replace(/^(#+)\s/gm, '')
-                .replace(/\*\*/g, '')
-                .replace(/`/g, '')
-                .replace(/^\s*[-*]\s/gm, '• ');
-              if (cleanedText) {
-                components.push({ type: 'text', content: cleanedText });
-              }
-            }
-          }
-
-          components.push({
-            type: 'code',
-            content: { language: codeMatch[1], code: codeMatch[2].trim() },
-          });
-
-          textLastIndex = codeMatch.index + codeMatch[0].length;
-        }
-
-        if (textLastIndex < beforeText.length) {
-          const textPart = beforeText.substring(textLastIndex).trim();
-          if (textPart) {
-            const cleanedText = textPart
-              .replace(/^(#+)\s/gm, '')
-              .replace(/\*\*/g, '')
-              .replace(/`/g, '')
-              .replace(/^\s*[-*]\s/gm, '• ');
-            if (cleanedText) {
-              components.push({ type: 'text', content: cleanedText });
-            }
-          }
-        }
-      }
-    }
-
-    try {
-      const tableText = match[1];
-      const lines = tableText.trim().split('\n').filter(line => line.trim());
-
-      if (lines.length >= 2) {
-        const headers = lines[0]
-          .split('|')
-          .map(h => h.trim())
-          .filter(Boolean);
-
-        const rows = lines.slice(2)
-          .map(row =>
-            row.split('|')
-              .map(c => c.trim())
-              .filter(Boolean)
-          )
-          .filter(row => row.length > 0);
-
-        if (headers.length > 0 && rows.length > 0) {
-          components.push({ type: 'table', content: { headers, rows } });
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing table:', error);
-    }
-
-    lastIndex = match.index + match[0].length;
+  
+  interface Block {
+    type: 'code' | 'table';
+    start: number;
+    end: number;
+    data: any;
   }
-
-  if (lastIndex < text.length) {
-    const afterText = text.substring(lastIndex).trim();
-    if (afterText) {
-      const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-      let codeMatch;
-      let textLastIndex = 0;
-
-      while ((codeMatch = codeBlockRegex.exec(afterText)) !== null) {
-        if (codeMatch.index > textLastIndex) {
-          const textPart = afterText.substring(textLastIndex, codeMatch.index).trim();
-          if (textPart) {
-            const cleanedText = textPart
-              .replace(/^(#+)\s/gm, '')
-              .replace(/\*\*/g, '')
-              .replace(/`/g, '')
-              .replace(/^\s*[-*]\s/gm, '• ');
-            if (cleanedText) {
-              components.push({ type: 'text', content: cleanedText });
+  
+  const blocks: Block[] = [];
+  
+  // Find all code blocks - Use simple iteration instead of exec
+  const codeBlockMatches = [...text.matchAll(/```(\w*)\n([\s\S]*?)```/g)];
+  
+  for (const match of codeBlockMatches) {
+    if (match.index !== undefined) {
+      blocks.push({
+        type: 'code',
+        start: match.index,
+        end: match.index + match[0].length,
+        data: {
+          language: match[1] || 'text',
+          code: match[2].trim()
+        }
+      });
+    }
+  }
+  
+  // Find all tables
+  const tableMatches = [...text.matchAll(/(\|[^\n]+\|\n\|[\s:|-]+\|\n(?:\|[^\n]+\|\n?)+)/g)];
+  
+  for (const match of tableMatches) {
+    if (match.index !== undefined) {
+      const tableStart = match.index;
+      const tableEnd = match.index + match[0].length;
+      
+      // Check if inside code block
+      const isInsideCodeBlock = blocks.some(
+        block => block.type === 'code' && tableStart >= block.start && tableEnd <= block.end
+      );
+      
+      if (!isInsideCodeBlock) {
+        try {
+          const tableText = match[1];
+          const lines = tableText.trim().split('\n').filter(line => line.trim());
+          
+          if (lines.length >= 2) {
+            const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
+            const rows = lines.slice(2)
+              .map(row => row.split('|').map(c => c.trim()).filter(Boolean))
+              .filter(row => row.length > 0);
+            
+            if (headers.length > 0 && rows.length > 0) {
+              blocks.push({
+                type: 'table',
+                start: tableStart,
+                end: tableEnd,
+                data: { headers, rows }
+              });
             }
           }
-        }
-
-        components.push({
-          type: 'code',
-          content: { language: codeMatch[1], code: codeMatch[2].trim() },
-        });
-
-        textLastIndex = codeMatch.index + codeMatch[0].length;
-      }
-
-      if (textLastIndex < afterText.length) {
-        const textPart = afterText.substring(textLastIndex).trim();
-        if (textPart) {
-          const cleanedText = textPart
-            .replace(/^(#+)\s/gm, '')
-            .replace(/\*\*/g, '')
-            .replace(/`/g, '')
-            .replace(/^\s*[-*]\s/gm, '• ');
-          if (cleanedText) {
-            components.push({ type: 'text', content: cleanedText });
-          }
+        } catch (error) {
+          console.error('Error parsing table:', error);
         }
       }
     }
   }
-
+  
+  // Sort blocks
+  blocks.sort((a, b) => a.start - b.start);
+  
+  // Extract components
+  let currentPosition = 0;
+  
+  for (const block of blocks) {
+    // Text before block
+    if (currentPosition < block.start) {
+      const textContent = text.substring(currentPosition, block.start).trim();
+      if (textContent) {
+        const cleanedText = textContent
+          .replace(/^(#+)\s/gm, '')
+          .replace(/\*\*/g, '')
+          .replace(/`/g, '')
+          .replace(/^\s*[-*]\s/gm, '• ');
+        
+        if (cleanedText.trim()) {
+          components.push({ type: 'text', content: cleanedText });
+        }
+      }
+    }
+    
+    // Add block
+    components.push({
+      type: block.type,
+      content: block.data
+    });
+    
+    currentPosition = block.end;
+  }
+  
+  // Remaining text
+  if (currentPosition < text.length) {
+    const textContent = text.substring(currentPosition).trim();
+    if (textContent) {
+      const cleanedText = textContent
+        .replace(/^(#+)\s/gm, '')
+        .replace(/\*\*/g, '')
+        .replace(/`/g, '')
+        .replace(/^\s*[-*]\s/gm, '• ');
+      
+      if (cleanedText.trim()) {
+        components.push({ type: 'text', content: cleanedText });
+      }
+    }
+  }
+  
+  // Fallback
   if (components.length === 0 && text.trim()) {
     const cleanedText = text
       .replace(/^(#+)\s/gm, '')
       .replace(/\*\*/g, '')
       .replace(/`/g, '')
       .replace(/^\s*[-*]\s/gm, '• ');
+    
     if (cleanedText.trim()) {
       components.push({ type: 'text', content: cleanedText });
     }
   }
-
+  
   return components;
 };
 
@@ -218,6 +215,24 @@ const isReactCode = (files: CodeFile[]): boolean => {
   });
 };
 
+// ✅ NEW: Extract all code blocks from user message for preview
+const extractUserCodeBlocks = (text: string): ParsedCodeBlock[] => {
+  const blocks: ParsedCodeBlock[] = [];
+  const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
+  let match;
+  let index = 0;
+
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    blocks.push({
+      language: match[1] || 'text',
+      code: match[2].trim(),
+      index: index++
+    });
+  }
+
+  return blocks;
+};
+
 export const ChatMessage: React.FC<ChatMessageProps> = ({
   message,
   isLoading,
@@ -232,6 +247,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [canvasWidth, setCanvasWidth] = useState(50);
   const [globalActiveCanvas, setGlobalActiveCanvas] = useState<string | null>(__globalActiveCanvasId);
   
+  // ✅ NEW: State for code block modal in user messages
+  const [expandedUserBlock, setExpandedUserBlock] = useState<ParsedCodeBlock | null>(null);
+  
   // ✅ State untuk loading message
   const { t } = useLocalization();
   const [loadingMessage, setLoadingMessage] = useState<string>('Loading...');
@@ -244,7 +262,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       const loadingMessagesArray = Array.isArray(messages) ? messages : ['Loading...'];
       setLoadingMessage(getRandomLoadingMessage(loadingMessagesArray));
       
-      // Update message every 3 seconds
+      // Update message every 18 seconds
       const interval = setInterval(() => {
         const messagesUpdate = t('loadingMessages');
         const loadingMessagesArrayUpdate = Array.isArray(messagesUpdate) ? messagesUpdate : ['Loading...'];
@@ -375,82 +393,206 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const anyEditingActive = Boolean(globalEditingId);
   const isThisCanvasActive = globalActiveCanvas === message.id;
 
+  // ✅ NEW: Parse user message for code blocks
+  const userCodeBlocks = message.sender === MessageSender.User 
+    ? extractUserCodeBlocks(message.text)
+    : [];
+
+  // ✅ NEW: Function to render user message text only (without code blocks)
+  const renderUserMessageText = () => {
+    if (userCodeBlocks.length === 0) {
+      return message.text;
+    }
+
+    // Remove all code blocks from text
+    let textOnly = message.text.replace(/```(\w*)\n([\s\S]*?)```/g, '').trim();
+    return textOnly;
+  };
+
   if (message.sender === MessageSender.User) {
     return (
-      <div className="flex flex-col items-end gap-2">
-        <div className="flex items-start gap-3 sm:gap-4 justify-end w-full">
-          <div
-            className={`transition-all duration-200 ${isEditingLocal
-              ? 'w-full sm:w-3/4 bg-blue-700/70'
-              : 'max-w-[85%] sm:max-w-xl lg:max-w-3xl bg-blue-600'
-              } px-4 sm:px-5 py-3 rounded-2xl rounded-br-none relative overflow-hidden`}
-          >
-            {isEditingLocal ? (
-              <div className="flex flex-col gap-3">
-                <textarea
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  className="w-full bg-blue-800/50 text-white rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none min-h-[90px] text-sm sm:text-base"
-                  rows={4}
-                  aria-label="Edit message"
-                  autoFocus
-                />
-                <div className="flex justify-end gap-2 text-sm">
-                  <button
-                    onClick={() => stopEditing(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-gray-700/50 hover:bg-gray-600 text-gray-200 transition"
-                  >
-                    <FiX size={14} />
-                    {t('cancel')}
-                  </button>
-                  <button
-                    onClick={handleSaveEdit}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-white text-blue-600 hover:brightness-95 transition"
-                  >
-                    <FiCheck size={14} />
-                    {t('save')}
-                  </button>
-                </div>
+      <>
+        <div className="flex flex-col items-end gap-2">
+ {/* ✅ Code Blocks Grid - Di atas bubble chat */}
+          {userCodeBlocks.length > 0 && !isEditingLocal && (
+            <div className="w-full flex justify-end">
+              <div className={`grid gap-2 mb-2 ${
+                userCodeBlocks.length === 1 
+                  ? 'grid-cols-1 w-auto min-w-[200px] max-w-[85%] sm:max-w-md' 
+                  : 'grid-cols-2 lg:grid-cols-3 w-full max-w-[85%] sm:max-w-xl lg:max-w-3xl'
+              } ${userCodeBlocks.length % 2 !== 0 && userCodeBlocks.length > 1 ? '[&>*:last-child]:col-start-2 lg:[&>*:last-child]:col-start-auto' : ''}`}>
+                {userCodeBlocks.map((block, idx) => {
+                  const lineCount = block.code.split('\n').length;
+                  return (
+                    <div
+                      key={`code-${idx}`}
+                      className="bg-gray-700/50 border border-gray-600 rounded-lg p-3 group cursor-pointer hover:border-blue-500/50 transition-colors"
+                      onClick={() => setExpandedUserBlock(block)}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-blue-500/20 rounded flex items-center justify-center">
+                              <FiCode className="text-blue-400" size={12} />
+                            </div>
+                            {block.language && (
+                              <span className="text-xs px-1.5 py-0.5 bg-gray-600 text-gray-300 rounded">
+                                {block.language}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedUserBlock(block);
+                            }}
+                            className="p-1 rounded hover:bg-gray-600 text-gray-400 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <FiMaximize2 size={12} />
+                          </button>
+                        </div>
+                        
+                        <pre className="text-xs text-gray-400 font-mono overflow-hidden line-clamp-3">
+                          {block.code}
+                        </pre>
+                        
+                        <span className="text-xs text-gray-500">
+                          {lineCount} {lineCount === 1 ? 'line' : 'lines'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
-              <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere text-white text-sm sm:text-base leading-relaxed">
-                {message.text}
-              </p>
-            )}
+            </div>
+          )}
+
+          <div className="flex items-start gap-3 sm:gap-4 justify-end w-full">
+            <div
+              className={`transition-all duration-200 ${isEditingLocal
+                ? 'w-full sm:w-3/4 bg-blue-700/70'
+                : 'max-w-[85%] sm:max-w-xl lg:max-w-3xl bg-blue-600'
+                } px-4 sm:px-5 py-3 rounded-2xl rounded-br-none relative overflow-hidden`}
+            >
+              {isEditingLocal ? (
+                <div className="flex flex-col gap-3">
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    className="w-full bg-blue-800/50 text-white rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none min-h-[90px] text-sm sm:text-base"
+                    rows={4}
+                    aria-label="Edit message"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 text-sm">
+                    <button
+                      onClick={() => stopEditing(true)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-gray-700/50 hover:bg-gray-600 text-gray-200 transition"
+                    >
+                      <FiX size={14} />
+                      {t('cancel')}
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-white text-blue-600 hover:brightness-95 transition"
+                    >
+                      <FiCheck size={14} />
+                      {t('save')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere text-white text-sm sm:text-base leading-relaxed">
+                  {renderUserMessageText()}
+                </p>
+              )}
+            </div>
+
+            <div className="hidden md:flex w-8 h-8 rounded-full bg-gray-700 items-center justify-center overflow-hidden flex-shrink-0">
+              <FiUser size={18} />
+            </div>
           </div>
 
-          <div className="hidden md:flex w-8 h-8 rounded-full bg-gray-700 items-center justify-center overflow-hidden flex-shrink-0">
-            <FiUser size={18} />
-          </div>
+          {!isEditingLocal && !shouldHideButtons && (
+            <div className="flex text-xs md:mr-10">
+              <button
+                onClick={() => onResendMessage(message.text)}
+                disabled={anyEditingActive}
+                className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${anyEditingActive
+                  ? 'opacity-40 cursor-not-allowed text-gray-500'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                  }`}
+                title={t('running')}
+              >
+                <FiRefreshCw size={13} />
+              </button>
+              <button
+                onClick={startEditing}
+                disabled={anyEditingActive}
+                className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${anyEditingActive
+                  ? 'opacity-40 cursor-not-allowed text-gray-500'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                  }`}
+                title={t('editingNote')}
+              >
+                <FiEdit3 size={13} />
+              </button>
+            </div>
+          )}
         </div>
 
-        {!isEditingLocal && !shouldHideButtons && (
-          <div className="flex text-xs md:mr-10">
-            <button
-              onClick={() => onResendMessage(message.text)}
-              disabled={anyEditingActive}
-              className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${anyEditingActive
-                ? 'opacity-40 cursor-not-allowed text-gray-500'
-                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                }`}
-              title={t('running')}
-            >
-              <FiRefreshCw size={13} />
-            </button>
-            <button
-              onClick={startEditing}
-              disabled={anyEditingActive}
-              className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${anyEditingActive
-                ? 'opacity-40 cursor-not-allowed text-gray-500'
-                : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                }`}
-              title={t('editingNote')}
-            >
-              <FiEdit3 size={13} />
-            </button>
+        {/* ✅ NEW: User Code Block Modal */}
+        {expandedUserBlock && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-gray-900 rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col border border-gray-700 shadow-2xl">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                    <FiCode className="text-blue-400" size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-white">
+                      Code Preview
+                    </h3>
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      {expandedUserBlock.language && (
+                        <span className="px-2 py-0.5 bg-gray-800 rounded">
+                          {expandedUserBlock.language}
+                        </span>
+                      )}
+                      <span>{expandedUserBlock.code.split('\n').length} lines</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setExpandedUserBlock(null)}
+                  className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-auto p-4">
+                <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-words bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                  {expandedUserBlock.code}
+                </pre>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-700 bg-gray-800/30">
+                <button
+                  onClick={() => setExpandedUserBlock(null)}
+                  className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </>
     );
   }
 
@@ -460,7 +602,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       <div className="flex items-start gap-3 sm:gap-4">
         <div className="max-w-[85%] sm:max-w-xl lg:max-w-3xl px-4 sm:px-5 py-3 rounded-2xl bg-gray-700 rounded-bl-none">
           <div className="flex flex-col gap-2">
-          
             <p className="text-gray-400 text-sm animate-pulse">
               {loadingMessage}
             </p>
