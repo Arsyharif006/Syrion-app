@@ -191,7 +191,7 @@ export const BillingSettings: React.FC = () => {
                     <>
                       <li className="flex items-center gap-2 text-sm text-gray-300">
                         <FiCheck className="text-green-400" size={16} />
-                        {t('freeFeature1') || '30 messages per month'}
+                        {t('freeFeature1') || '10 messages per month'}
                       </li>
                       <li className="flex items-center gap-2 text-sm text-gray-300">
                         <FiCheck className="text-green-400" size={16} />
@@ -203,7 +203,7 @@ export const BillingSettings: React.FC = () => {
                     <>
                       <li className="flex items-center gap-2 text-sm text-gray-300">
                         <FiCheck className="text-green-400" size={16} />
-                        {t('demoFeature1') || '100 messages'}
+                        {t('demoFeature1') || '20 messages'}
                       </li>
                       <li className="flex items-center gap-2 text-sm text-gray-300">
                         <FiCheck className="text-green-400" size={16} />
@@ -255,7 +255,7 @@ export const BillingSettings: React.FC = () => {
               <ul className="space-y-2 mb-4">
                 <li className="flex items-start gap-2 text-sm text-gray-400">
                   <FiCheck className="text-gray-500 flex-shrink-0 mt-0.5" size={16} />
-                  <span>30 {t('messagesPerPeriod') || 'messages per month'}</span>
+                  <span>10 {t('messagesPerPeriod') || 'messages per month'}</span>
                 </li>
                 <li className="flex items-start gap-2 text-sm text-gray-400">
                   <FiCheck className="text-gray-500 flex-shrink-0 mt-0.5" size={16} />
@@ -284,7 +284,7 @@ export const BillingSettings: React.FC = () => {
               <ul className="space-y-2 mb-4">
                 <li className="flex items-start gap-2 text-sm text-gray-300">
                   <FiCheck className="text-blue-400 flex-shrink-0 mt-0.5" size={16} />
-                  <span>100 {t('messagesPerPeriod') || 'messages'}</span>
+                  <span>20 {t('messagesPerPeriod') || 'messages'}</span>
                 </li>
                 <li className="flex items-start gap-2 text-sm text-gray-300">
                   <FiCheck className="text-blue-400 flex-shrink-0 mt-0.5" size={16} />

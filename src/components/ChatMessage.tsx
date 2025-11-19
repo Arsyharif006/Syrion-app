@@ -51,90 +51,108 @@ const parseAiResponse = (text: string) => {
   if (!text) return [];
 
   const components: { type: 'text' | 'code' | 'table'; content: any }[] = [];
+  const blocks: { type: 'code' | 'table' | 'text'; start: number; end: number; data: any }[] = [];
   
-  interface Block {
-    type: 'code' | 'table';
-    start: number;
-    end: number;
-    data: any;
-  }
-  
-  const blocks: Block[] = [];
-  
-  // Find all code blocks - Use simple iteration instead of exec
-  const codeBlockMatches = [...text.matchAll(/```(\w*)\n([\s\S]*?)```/g)];
-  
-  for (const match of codeBlockMatches) {
-    if (match.index !== undefined) {
-      blocks.push({
-        type: 'code',
-        start: match.index,
-        end: match.index + match[0].length,
-        data: {
-          language: match[1] || 'text',
-          code: match[2].trim()
-        }
-      });
+  // ✅ IMPROVED: More flexible code block parsing
+  let pos = 0;
+  while (pos < text.length) {
+    const codeStart = text.indexOf('```', pos);
+    if (codeStart === -1) break;
+    
+    const langStart = codeStart + 3;
+    let langEnd = text.indexOf('\n', langStart);
+    
+    // Handle case: ``` with no newline after it (at end of text)
+    if (langEnd === -1) {
+      pos = codeStart + 3;
+      continue;
     }
+    
+    const language = text.slice(langStart, langEnd).trim();
+    const contentStart = langEnd + 1;
+    
+    // Find closing ``` - must be on own line
+    let codeEnd = -1;
+    let searchPos = contentStart;
+    
+    while (searchPos < text.length) {
+      const potentialEnd = text.indexOf('```', searchPos);
+      if (potentialEnd === -1) break;
+      
+      // Check if ``` is at start of line (after \n or at beginning)
+      if (potentialEnd === 0 || text[potentialEnd - 1] === '\n') {
+        codeEnd = potentialEnd;
+        break;
+      }
+      
+      searchPos = potentialEnd + 3;
+    }
+    
+    if (codeEnd === -1) break;
+    
+    const code = text.slice(contentStart, codeEnd).trim();
+    
+    blocks.push({
+      type: 'code',
+      start: codeStart,
+      end: codeEnd + 3,
+      data: { language: language || 'text', code }
+    });
+    
+    pos = codeEnd + 3;
   }
   
-  // Find all tables
-  const tableMatches = [...text.matchAll(/(\|[^\n]+\|\n\|[\s:|-]+\|\n(?:\|[^\n]+\|\n?)+)/g)];
+  // Step 2: Extract table blocks (hanya di area yang tidak termasuk code)
+  const tableRegex = /(\|[^\n]+\|\n\|[\s:|-]+\|\n(?:\|[^\n]+\|\n?)*)/g;
+  let tableMatch;
   
-  for (const match of tableMatches) {
-    if (match.index !== undefined) {
-      const tableStart = match.index;
-      const tableEnd = match.index + match[0].length;
-      
-      // Check if inside code block
-      const isInsideCodeBlock = blocks.some(
-        block => block.type === 'code' && tableStart >= block.start && tableEnd <= block.end
-      );
-      
-      if (!isInsideCodeBlock) {
-        try {
-          const tableText = match[1];
-          const lines = tableText.trim().split('\n').filter(line => line.trim());
+  while ((tableMatch = tableRegex.exec(text)) !== null) {
+    const tableStart = tableMatch.index;
+    const tableEnd = tableMatch.index + tableMatch[0].length;
+    
+    // Cek apakah table berada di dalam code block
+    const isInsideCode = blocks.some(b => b.type === 'code' && tableStart >= b.start && tableEnd <= b.end);
+    
+    if (!isInsideCode) {
+      try {
+        const lines = tableMatch[1].trim().split('\n').filter(line => line.trim());
+        if (lines.length >= 2) {
+          const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
+          const rows = lines.slice(2).map(row =>
+            row.split('|').map(c => c.trim()).filter(Boolean)
+          ).filter(row => row.length > 0);
           
-          if (lines.length >= 2) {
-            const headers = lines[0].split('|').map(h => h.trim()).filter(Boolean);
-            const rows = lines.slice(2)
-              .map(row => row.split('|').map(c => c.trim()).filter(Boolean))
-              .filter(row => row.length > 0);
-            
-            if (headers.length > 0 && rows.length > 0) {
-              blocks.push({
-                type: 'table',
-                start: tableStart,
-                end: tableEnd,
-                data: { headers, rows }
-              });
-            }
+          if (headers.length > 0 && rows.length > 0) {
+            blocks.push({
+              type: 'table',
+              start: tableStart,
+              end: tableEnd,
+              data: { headers, rows }
+            });
           }
-        } catch (error) {
-          console.error('Error parsing table:', error);
         }
+      } catch (error) {
+        console.error('Error parsing table:', error);
       }
     }
   }
   
-  // Sort blocks
+  // Step 3: Sort blocks by position
   blocks.sort((a, b) => a.start - b.start);
   
-  // Extract components
-  let currentPosition = 0;
+  // Step 4: Extract text between blocks
+  let currentPos = 0;
   
   for (const block of blocks) {
-    // Text before block
-    if (currentPosition < block.start) {
-      const textContent = text.substring(currentPosition, block.start).trim();
+    // Add text before block
+    if (currentPos < block.start) {
+      const textContent = text.slice(currentPos, block.start).trim();
       if (textContent) {
         const cleanedText = textContent
           .replace(/^(#+)\s/gm, '')
           .replace(/\*\*/g, '')
           .replace(/`/g, '')
           .replace(/^\s*[-*]\s/gm, '• ');
-        
         if (cleanedText.trim()) {
           components.push({ type: 'text', content: cleanedText });
         }
@@ -142,38 +160,32 @@ const parseAiResponse = (text: string) => {
     }
     
     // Add block
-    components.push({
-      type: block.type,
-      content: block.data
-    });
-    
-    currentPosition = block.end;
+    components.push({ type: block.type, content: block.data });
+    currentPos = block.end;
   }
   
-  // Remaining text
-  if (currentPosition < text.length) {
-    const textContent = text.substring(currentPosition).trim();
+  // Add remaining text
+  if (currentPos < text.length) {
+    const textContent = text.slice(currentPos).trim();
     if (textContent) {
       const cleanedText = textContent
         .replace(/^(#+)\s/gm, '')
         .replace(/\*\*/g, '')
         .replace(/`/g, '')
         .replace(/^\s*[-*]\s/gm, '• ');
-      
       if (cleanedText.trim()) {
         components.push({ type: 'text', content: cleanedText });
       }
     }
   }
   
-  // Fallback
+  // Fallback jika tidak ada komponen
   if (components.length === 0 && text.trim()) {
     const cleanedText = text
       .replace(/^(#+)\s/gm, '')
       .replace(/\*\*/g, '')
       .replace(/`/g, '')
       .replace(/^\s*[-*]\s/gm, '• ');
-    
     if (cleanedText.trim()) {
       components.push({ type: 'text', content: cleanedText });
     }
@@ -184,12 +196,41 @@ const parseAiResponse = (text: string) => {
 
 const extractCodeFiles = (text: string): CodeFile[] => {
   const files: CodeFile[] = [];
-  const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-  let match;
+  let pos = 0;
 
-  while ((match = codeBlockRegex.exec(text)) !== null) {
-    const language = match[1] || 'text';
-    const content = match[2].trim();
+  while (pos < text.length) {
+    const codeStart = text.indexOf('```', pos);
+    if (codeStart === -1) break;
+    
+    const langStart = codeStart + 3;
+    let langEnd = text.indexOf('\n', langStart);
+    
+    if (langEnd === -1) {
+      pos = codeStart + 3;
+      continue;
+    }
+    
+    const language = text.slice(langStart, langEnd).trim();
+    const contentStart = langEnd + 1;
+    
+    let codeEnd = -1;
+    let searchPos = contentStart;
+    
+    while (searchPos < text.length) {
+      const potentialEnd = text.indexOf('```', searchPos);
+      if (potentialEnd === -1) break;
+      
+      if (potentialEnd === 0 || text[potentialEnd - 1] === '\n') {
+        codeEnd = potentialEnd;
+        break;
+      }
+      
+      searchPos = potentialEnd + 3;
+    }
+    
+    if (codeEnd === -1) break;
+    
+    const content = text.slice(contentStart, codeEnd).trim();
 
     const canvasLanguages = [
       'html', 'css', 'javascript', 'js', 'typescript', 'ts',
@@ -201,6 +242,8 @@ const extractCodeFiles = (text: string): CodeFile[] => {
     if (canvasLanguages.includes(language.toLowerCase())) {
       files.push({ language, content });
     }
+    
+    pos = codeEnd + 3;
   }
 
   return files;
@@ -218,16 +261,50 @@ const isReactCode = (files: CodeFile[]): boolean => {
 // ✅ NEW: Extract all code blocks from user message for preview
 const extractUserCodeBlocks = (text: string): ParsedCodeBlock[] => {
   const blocks: ParsedCodeBlock[] = [];
-  const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-  let match;
+  let pos = 0;
   let index = 0;
 
-  while ((match = codeBlockRegex.exec(text)) !== null) {
+  while (pos < text.length) {
+    const codeStart = text.indexOf('```', pos);
+    if (codeStart === -1) break;
+    
+    const langStart = codeStart + 3;
+    let langEnd = text.indexOf('\n', langStart);
+    
+    if (langEnd === -1) {
+      pos = codeStart + 3;
+      continue;
+    }
+    
+    const language = text.slice(langStart, langEnd).trim();
+    const contentStart = langEnd + 1;
+    
+    let codeEnd = -1;
+    let searchPos = contentStart;
+    
+    while (searchPos < text.length) {
+      const potentialEnd = text.indexOf('```', searchPos);
+      if (potentialEnd === -1) break;
+      
+      if (potentialEnd === 0 || text[potentialEnd - 1] === '\n') {
+        codeEnd = potentialEnd;
+        break;
+      }
+      
+      searchPos = potentialEnd + 3;
+    }
+    
+    if (codeEnd === -1) break;
+    
+    const code = text.slice(contentStart, codeEnd).trim();
+    
     blocks.push({
-      language: match[1] || 'text',
-      code: match[2].trim(),
+      language: language || 'text',
+      code,
       index: index++
     });
+    
+    pos = codeEnd + 3;
   }
 
   return blocks;
@@ -340,6 +417,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const hasCanvasContent = codeFiles.length > 0;
   const isReact = useMemo(() => isReactCode(codeFiles), [codeFiles]);
 
+  // ✅ FIXED: Close canvas saat message berubah (pindah conversation)
+  useEffect(() => {
+    if (showCanvas) {
+      setShowCanvas(false);
+      EMIT_CANVAS_CHANGE(null, 0);
+    }
+  }, [message.id]);
+
+  // ✅ FIXED: Auto-open canvas hanya untuk AI messages dengan code
   useEffect(() => {
     if (hasCanvasContent && !isLoading && message.sender === MessageSender.AI && !__globalActiveCanvasId) {
       setShowCanvas(false);
@@ -349,7 +435,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [message.text, hasCanvasContent, isLoading, message.sender, message.id, canvasWidth]);
+  }, [message.id, hasCanvasContent, isLoading, message.sender, canvasWidth]);
 
   const startEditing = () => {
     __globalEditingId = message.id;
@@ -398,37 +484,71 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     ? extractUserCodeBlocks(message.text)
     : [];
 
-  // ✅ NEW: Function to render user message text only (without code blocks)
+  // ✅ IMPROVED: Function to render user message text only (without code blocks)
   const renderUserMessageText = () => {
     if (userCodeBlocks.length === 0) {
       return message.text;
     }
 
-    // Remove all code blocks from text
-    let textOnly = message.text.replace(/```(\w*)\n([\s\S]*?)```/g, '').trim();
-    return textOnly;
+    // Remove code blocks menggunakan logic yang sama dengan extractUserCodeBlocks
+    let textOnly = message.text;
+    let pos = 0;
+
+    while (pos < textOnly.length) {
+      const codeStart = textOnly.indexOf('```', pos);
+      if (codeStart === -1) break;
+      
+      const langStart = codeStart + 3;
+      let langEnd = textOnly.indexOf('\n', langStart);
+      
+      if (langEnd === -1) {
+        pos = codeStart + 3;
+        continue;
+      }
+      
+      const contentStart = langEnd + 1;
+      let codeEnd = -1;
+      let searchPos = contentStart;
+      
+      while (searchPos < textOnly.length) {
+        const potentialEnd = textOnly.indexOf('```', searchPos);
+        if (potentialEnd === -1) break;
+        
+        if (potentialEnd === 0 || textOnly[potentialEnd - 1] === '\n') {
+          codeEnd = potentialEnd;
+          break;
+        }
+        
+        searchPos = potentialEnd + 3;
+      }
+      
+      if (codeEnd === -1) break;
+      
+      // Remove this code block
+      textOnly = textOnly.slice(0, codeStart) + textOnly.slice(codeEnd + 3);
+      pos = codeStart;
+    }
+    
+    return textOnly.trim();
   };
 
   if (message.sender === MessageSender.User) {
     return (
       <>
+
         <div className="flex flex-col items-end gap-2">
- {/* ✅ Code Blocks Grid - Di atas bubble chat */}
+      <div className="flex items-end justify-end ">
           {userCodeBlocks.length > 0 && !isEditingLocal && (
             <div className="w-full flex justify-end">
-              <div className={`grid gap-2 mb-2 ${
-                userCodeBlocks.length === 1 
-                  ? 'grid-cols-1 w-auto min-w-[200px] max-w-[85%] sm:max-w-md' 
-                  : 'grid-cols-2 lg:grid-cols-3 w-full max-w-[85%] sm:max-w-xl lg:max-w-3xl'
-              } ${userCodeBlocks.length % 2 !== 0 && userCodeBlocks.length > 1 ? '[&>*:last-child]:col-start-2 lg:[&>*:last-child]:col-start-auto' : ''}`}>
+              <div className="grid gap-2 mb-2 grid-cols-2 lg:grid-cols-3 max-w-[85%] sm:max-w-2xl lg:max-w-4xl">
                 {userCodeBlocks.map((block, idx) => {
                   const lineCount = block.code.split('\n').length;
                   return (
                     <div
-                      key={`code-${idx}`}
+                    key={`code-${idx}`}
                       className="bg-gray-700/50 border border-gray-600 rounded-lg p-3 group cursor-pointer hover:border-blue-500/50 transition-colors"
                       onClick={() => setExpandedUserBlock(block)}
-                    >
+                      >
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -466,6 +586,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               </div>
             </div>
           )}
+          </div>
 
           <div className="flex items-start gap-3 sm:gap-4 justify-end w-full">
             <div

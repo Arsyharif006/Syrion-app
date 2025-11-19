@@ -137,12 +137,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ) : (
                     <>
                       <span className="truncate flex-1">{conv.title}</span>
-                      <button
+                      
+                      {/* ✅ FIXED: Ganti button dengan div role="button" */}
+                      <div
                         onClick={(e) => handleDeleteClick(e, conv.id)}
-                        className="p-1 rounded-full hover:bg-gray-600 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            handleDeleteClick(e as any, conv.id);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className="p-1 rounded-full hover:bg-gray-600 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        title={t('delete')}
                       >
                         <HiTrash />
-                      </button>
+                      </div>
                     </>
                   )}
                 </button>

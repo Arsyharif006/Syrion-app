@@ -12,9 +12,9 @@ export interface RateLimitInfo {
 }
 
 const RATE_LIMIT_WINDOW = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
-const FREE_MAX_MESSAGES = 30; // Free plan limit
-const DEMO_MAX_MESSAGES = 100; // Demo plan limit
-const PRO_MAX_MESSAGES = 999999; // Pro plan (unlimited)
+const FREE_MAX_MESSAGES = 10; // Free plan limit
+const DEMO_MAX_MESSAGES = 20; // Demo plan limit
+const PRO_MAX_MESSAGES = 50; // Pro plan (unlimited)
 
 export const checkRateLimit = async (): Promise<RateLimitInfo> => {
   try {
