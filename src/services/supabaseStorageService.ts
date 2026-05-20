@@ -5,7 +5,7 @@ import { Conversation, Message, MessageSender } from '../../types';
 
 /**
  * Fetch all conversations for the current user
- */
+ */ 
 export const getConversations = async (): Promise<Conversation[]> => {
   try {
     const { data: conversationsData, error: convError } = await supabase
