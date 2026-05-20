@@ -1,4 +1,4 @@
-const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook/AIsyrfBolt';
+const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook-test/AIsyrfBolt';
 
 interface AttachmentPayload {
   name: string;
@@ -33,7 +33,6 @@ export interface UploadedFile {
 const extractTextFromResponse = (data: any): string | null => {
   if (!data) return null;
 
-  // Format 1: [{ output: "..." }] — AI Agent biasa
   if (Array.isArray(data) && data.length > 0 && data[0] !== null) {
     const first = data[0];
     if ('output' in first && first.output) return first.output;
@@ -43,7 +42,6 @@ const extractTextFromResponse = (data: any): string | null => {
     if ('answer' in first && first.answer) return first.answer;
     if ('content' in first && first.content) return first.content;
 
-    // Format: [{ parts: [{ text: "..." }] }] — Gemini parts array
     if ('parts' in first && Array.isArray(first.parts)) {
       const text = first.parts.map((p: any) => p.text || '').join('');
       if (text) return text;
@@ -52,15 +50,12 @@ const extractTextFromResponse = (data: any): string | null => {
     if (typeof first === 'string') return first;
   }
 
-  // Format 2: { parts: [{ text: "..." }] } — Gemini content object langsung
   if (typeof data === 'object' && !Array.isArray(data)) {
-    // { parts: [{ text: "..." }] }
     if (data.parts && Array.isArray(data.parts)) {
       const text = data.parts.map((p: any) => p.text || '').join('');
       if (text) return text;
     }
 
-    // { candidates: [{ content: { parts: [{ text }] } }] } — Gemini full response
     if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
       return data.candidates[0].content.parts[0].text;
     }
@@ -73,10 +68,20 @@ const extractTextFromResponse = (data: any): string | null => {
     if (data.content) return data.content;
   }
 
-  // Format 3: plain string
   if (typeof data === 'string' && data.trim()) return data.trim();
 
   return null;
+};
+
+const buildQuestionWithContext = (message: string, attachments?: UploadedFile[]): string => {
+  if (!attachments?.length) return message;
+
+  const labels = attachments.map((uf) => {
+    const isImage = uf.type === 'image' || uf.file.type.startsWith('image/');
+    return isImage ? `[gambar: ${uf.file.name}]` : `[dokumen: ${uf.file.name}]`;
+  });
+
+  return `${message}\n\n${labels.join('\n')}`;
 };
 
 export const sendMessageToWebhook = async (
@@ -84,7 +89,9 @@ export const sendMessageToWebhook = async (
   attachments?: UploadedFile[]
 ): Promise<string> => {
   try {
-    const payload: WebhookPayload = { question: message };
+    const payload: WebhookPayload = {
+      question: buildQuestionWithContext(message, attachments),
+    };
 
     if (attachments && attachments.length > 0) {
       const attachmentPayloads: AttachmentPayload[] = await Promise.all(

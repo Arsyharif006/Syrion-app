@@ -21,6 +21,38 @@ interface UploadedFile {
   type: 'image' | 'file';
 }
 
+// Konstanta filter — taruh di atas component
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/jpg',  // beberapa browser pakai ini
+]);
+
+const ALLOWED_EXTENSIONS = /\.(pdf|png|jpg|jpeg)$/i;
+
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+export const validateFile = (file: File): { valid: boolean; reason?: string } => {
+  // Cek MIME type
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    return { valid: false, reason: `Format tidak didukung. Hanya PDF, PNG, JPG, JPEG` };
+  }
+
+  // Cek ekstensi (double check, karena MIME bisa di-spoof)
+  if (!ALLOWED_EXTENSIONS.test(file.name)) {
+    return { valid: false, reason: `Ekstensi file tidak valid.` };
+  }
+
+  // Cek ukuran
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    return { valid: false, reason: `File terlalu besar. Maksimal ${MAX_FILE_SIZE_MB}MB.` };
+  }
+
+  return { valid: true };
+};
+
 export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }) => {
   const [text, setText] = useState('');
   const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>([]);
@@ -39,6 +71,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { t } = useLocalization();
+
 
   // Computed once as a stable ref — avoids recalculating on every re-render
   const isMobile = useRef(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)).current;
@@ -389,7 +422,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }
           </div>
 
           {/* Hidden inputs — always mounted outside the dropdown so .click() works reliably on mobile */}
-          <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
+          <input
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg,image"
+            multiple
+            onChange={handleFileChange}
+            ref={fileInputRef}
+            className="hidden"
+          />
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
 
           {/* Send button */}
