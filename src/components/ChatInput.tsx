@@ -30,6 +30,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
@@ -239,17 +240,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }
                 style={{ maxWidth: '160px' }}
               >
                 {uf.type === 'image' && uf.previewUrl ? (
-                  /* Image thumbnail */
                   <div className="relative w-20 h-20 flex-shrink-0">
                     <img
                       src={uf.previewUrl}
                       alt={uf.file.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setPreviewImageUrl(uf.previewUrl!)}  // ← onClick di img, bukan div
                     />
-                    {/* Remove button overlay */}
                     <button
                       type="button"
-                      onClick={() => removeUploadedFile(uf.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();  // ← tambahkan ini
+                        removeUploadedFile(uf.id);
+                      }}
                       className="absolute top-1 right-1 w-5 h-5 rounded-full bg-gray-900/80 flex items-center justify-center text-gray-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <FiX size={11} />
@@ -505,6 +508,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading }
         </div>
       )}
 
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <img
+              src={previewImageUrl}
+              alt="preview"
+              className="max-w-[90vw] max-h-[80vh] rounded-xl block"
+            />
+            <button
+              onClick={() => setPreviewImageUrl(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-800 shadow-lg"
+            >
+              <FiX size={16} />
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`
         @keyframes fadeSlideUp {
           from { opacity: 0; transform: translateY(6px); }

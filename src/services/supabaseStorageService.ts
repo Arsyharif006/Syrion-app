@@ -1,11 +1,111 @@
 // src/services/supabaseStorageService.ts
 
 import { supabase } from '../lib/supabaseClient';
-import { Conversation, Message, MessageSender } from '../../types';
+import { Conversation, Message, MessageSender, MessageAttachment } from '../../types';
+import { hydrateAttachmentUrls, StoredAttachment } from './attachmentService';
+
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
 
 /**
- * Fetch all conversations for the current user
- */ 
+ * Sanitasi teks pesan — handle kasus response Gemini yang tersimpan
+ * sebagai JSON object (bukan plain string) di database.
+ */
+const sanitizeMessageText = (raw: any): string => {
+  if (!raw) return '';
+
+  // Sudah string biasa
+  if (typeof raw !== 'string') return JSON.stringify(raw);
+
+  // Coba parse — mungkin JSON dari Gemini
+  try {
+    const parsed = JSON.parse(raw);
+
+    // Format: { parts: [{ text }] }
+    if (parsed?.parts && Array.isArray(parsed.parts)) {
+      return parsed.parts.map((p: any) => p.text || '').join('');
+    }
+
+    // Format: { candidates: [{ content: { parts: [{ text }] } }] }
+    if (parsed?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return parsed.candidates[0].content.parts[0].text;
+    }
+
+    // Format: { output | text | message | response | answer | content }
+    const direct =
+      parsed?.output || parsed?.text || parsed?.message ||
+      parsed?.response || parsed?.answer || parsed?.content;
+    if (direct && typeof direct === 'string') return direct;
+  } catch {
+    // Bukan JSON — gunakan apa adanya
+  }
+
+  return raw;
+};
+
+/**
+ * Parse kolom attachments dari DB → array StoredAttachment.
+ * Kolom bisa berupa string JSON atau objek JSONB langsung dari Supabase.
+ */
+const parseAttachments = (raw: any): StoredAttachment[] | null => {
+  if (!raw) return null;
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Mapping row DB → Message, termasuk sanitasi text + hydrate signed URL.
+ */
+const mapRowToMessage = async (msg: any): Promise<Message> => {
+  const text = sanitizeMessageText(msg.text);
+  const sender = msg.sender === 'user' ? MessageSender.User : MessageSender.AI;
+
+  const rawAttachments = parseAttachments(msg.attachments);
+  const attachments: MessageAttachment[] | undefined = rawAttachments
+    ? await hydrateAttachmentUrls(rawAttachments)
+    : undefined;
+
+  return { id: msg.id, text, sender, attachments };
+};
+
+/**
+ * Serialisasi Message → row untuk di-insert ke tabel messages.
+ * signedUrl sengaja dibuang — expired, tidak perlu disimpan.
+ */
+const serializeMessage = (msg: Message, conversationId: string) => {
+  const text = sanitizeMessageText(msg.text);
+
+  const attachments = msg.attachments?.length
+    ? JSON.stringify(msg.attachments.map(({ signedUrl, ...rest }) => rest))
+    : null;
+
+  return {
+    id: msg.id,
+    conversation_id: conversationId,
+    text,
+    sender: msg.sender === MessageSender.User ? 'user' : 'ai',
+    attachments,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────
+// Race-condition guard untuk saveConversation
+// ─────────────────────────────────────────────────────────────
+const savingInProgress = new Set<string>();
+
+// ─────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Ambil semua conversation milik user yang sedang login,
+ * beserta seluruh pesan dan attachment-nya.
+ */
 export const getConversations = async (): Promise<Conversation[]> => {
   try {
     const { data: conversationsData, error: convError } = await supabase
@@ -14,10 +114,9 @@ export const getConversations = async (): Promise<Conversation[]> => {
       .order('created_at', { ascending: false });
 
     if (convError) throw convError;
-    if (!conversationsData) return [];
+    if (!conversationsData?.length) return [];
 
-    // Fetch messages for each conversation
-    const conversationsWithMessages = await Promise.all(
+    const result = await Promise.all(
       conversationsData.map(async (conv) => {
         const { data: messagesData, error: msgError } = await supabase
           .from('messages')
@@ -26,39 +125,25 @@ export const getConversations = async (): Promise<Conversation[]> => {
           .order('created_at', { ascending: true });
 
         if (msgError) {
-          console.error('Error fetching messages:', msgError);
-          return {
-            id: conv.id,
-            title: conv.title,
-            messages: [],
-            createdAt: conv.created_at,
-          };
+          console.error(`[getConversations] Error fetching messages for ${conv.id}:`, msgError);
+          return { id: conv.id, title: conv.title, messages: [], createdAt: conv.created_at };
         }
 
-        const messages: Message[] = (messagesData || []).map((msg) => ({
-          id: msg.id,
-          text: msg.text,
-          sender: msg.sender === 'user' ? MessageSender.User : MessageSender.AI,
-        }));
+        const messages = await Promise.all((messagesData || []).map(mapRowToMessage));
 
-        return {
-          id: conv.id,
-          title: conv.title,
-          messages,
-          createdAt: conv.created_at,
-        };
+        return { id: conv.id, title: conv.title, messages, createdAt: conv.created_at };
       })
     );
 
-    return conversationsWithMessages;
+    return result;
   } catch (error) {
-    console.error('Error fetching conversations:', error);
+    console.error('[getConversations] Error:', error);
     return [];
   }
 };
 
 /**
- * Get a single conversation by ID
+ * Ambil satu conversation berdasarkan ID.
  */
 export const getConversation = async (id: string): Promise<Conversation | null> => {
   try {
@@ -77,113 +162,81 @@ export const getConversation = async (id: string): Promise<Conversation | null> 
       .order('created_at', { ascending: true });
 
     if (msgError) {
-      console.error('Error fetching messages:', msgError);
+      console.error(`[getConversation] Error fetching messages for ${id}:`, msgError);
       return null;
     }
 
-    const messages: Message[] = (messagesData || []).map((msg) => ({
-      id: msg.id,
-      text: msg.text,
-      sender: msg.sender === 'user' ? MessageSender.User : MessageSender.AI,
-    }));
+    const messages = await Promise.all((messagesData || []).map(mapRowToMessage));
 
-    return {
-      id: convData.id,
-      title: convData.title,
-      messages,
-      createdAt: convData.created_at,
-    };
+    return { id: convData.id, title: convData.title, messages, createdAt: convData.created_at };
   } catch (error) {
-    console.error('Error fetching conversation:', error);
+    console.error('[getConversation] Error:', error);
     return null;
   }
 };
 
 /**
- * Save or update a conversation
+ * Simpan (insert/update) conversation ke Supabase.
+ * Menggunakan upsert untuk mencegah duplicate key error.
+ * Skip jika conversation yang sama sedang dalam proses save.
  */
 export const saveConversation = async (conversation: Conversation): Promise<void> => {
+  if (savingInProgress.has(conversation.id)) return;
+  savingInProgress.add(conversation.id);
+
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    // Check if conversation exists
-    const { data: existing } = await supabase
+    // Upsert conversation
+    const { error: convError } = await supabase
       .from('conversations')
-      .select('id')
-      .eq('id', conversation.id)
-      .single();
-
-    if (existing) {
-      // Update existing conversation
-      const { error: updateError } = await supabase
-        .from('conversations')
-        .update({
-          title: conversation.title,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', conversation.id);
-
-      if (updateError) throw updateError;
-    } else {
-      // Insert new conversation
-      const { error: insertError } = await supabase
-        .from('conversations')
-        .insert({
+      .upsert(
+        {
           id: conversation.id,
           user_id: user.id,
           title: conversation.title,
           created_at: conversation.createdAt,
-        });
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+    if (convError) throw convError;
 
-      if (insertError) throw insertError;
-    }
-
-    // Delete existing messages and insert new ones
-    await supabase
-      .from('messages')
-      .delete()
-      .eq('conversation_id', conversation.id);
+    // Hapus messages lama lalu insert ulang
+    await supabase.from('messages').delete().eq('conversation_id', conversation.id);
 
     if (conversation.messages.length > 0) {
-      const messagesToInsert = conversation.messages.map((msg) => ({
-        id: msg.id,
-        conversation_id: conversation.id,
-        text: msg.text,
-        sender: msg.sender === MessageSender.User ? 'user' : 'ai',
-      }));
+      const rows = conversation.messages.map((msg) => serializeMessage(msg, conversation.id));
 
-      const { error: msgInsertError } = await supabase
+      const { error: msgError } = await supabase
         .from('messages')
-        .insert(messagesToInsert);
-
-      if (msgInsertError) throw msgInsertError;
+        .upsert(rows, { onConflict: 'id' });
+      if (msgError) throw msgError;
     }
   } catch (error) {
-    console.error('Error saving conversation:', error);
+    console.error('[saveConversation] Error:', error);
     throw error;
+  } finally {
+    savingInProgress.delete(conversation.id);
   }
 };
 
 /**
- * Delete a conversation and its messages
+ * Hapus satu conversation (messages terhapus otomatis via CASCADE di DB).
  */
 export const deleteConversation = async (id: string): Promise<void> => {
   try {
-    const { error } = await supabase
-      .from('conversations')
-      .delete()
-      .eq('id', id);
-
+    const { error } = await supabase.from('conversations').delete().eq('id', id);
     if (error) throw error;
   } catch (error) {
-    console.error('Error deleting conversation:', error);
+    console.error('[deleteConversation] Error:', error);
     throw error;
   }
 };
 
 /**
- * Delete all conversations for the current user
+ * Hapus semua conversation milik user yang sedang login.
  */
 export const deleteAllConversations = async (): Promise<void> => {
   try {
@@ -194,60 +247,54 @@ export const deleteAllConversations = async (): Promise<void> => {
       .from('conversations')
       .delete()
       .eq('user_id', user.id);
-
     if (error) throw error;
   } catch (error) {
-    console.error('Error deleting all conversations:', error);
+    console.error('[deleteAllConversations] Error:', error);
     throw error;
   }
 };
 
 /**
- * Get storage statistics
+ * Statistik pemakaian storage untuk ditampilkan di Settings.
  */
 export const getStorageStats = async () => {
+  const defaultStats = {
+    totalConversations: 0,
+    totalMessages: 0,
+    usedStorageBytes: 0,
+    usedStorageMB: 0,
+    maxStorageMB: 100,
+    usagePercentage: 0,
+  };
+
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return {
-        totalConversations: 0,
-        totalMessages: 0,
-        usedStorageBytes: 0,
-        usedStorageMB: 0,
-        maxStorageMB: 100,
-        usagePercentage: 0,
-      };
-    }
+    if (!user) return defaultStats;
 
-    // Count conversations
     const { count: convCount } = await supabase
       .from('conversations')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id);
 
-    // Count messages
     const { data: conversations } = await supabase
       .from('conversations')
       .select('id')
       .eq('user_id', user.id);
 
     let totalMessages = 0;
-    if (conversations && conversations.length > 0) {
-      const convIds = conversations.map(c => c.id);
+    if (conversations?.length) {
+      const convIds = conversations.map((c) => c.id);
       const { count: msgCount } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .in('conversation_id', convIds);
-
       totalMessages = msgCount || 0;
     }
 
-    // Estimate storage (rough approximation)
-    const avgMessageSize = 500; // bytes
-    const usedStorageBytes = totalMessages * avgMessageSize;
+    const AVG_MESSAGE_BYTES = 500;
+    const usedStorageBytes = totalMessages * AVG_MESSAGE_BYTES;
     const usedStorageMB = usedStorageBytes / (1024 * 1024);
     const maxStorageMB = 100;
-    const usagePercentage = Math.min((usedStorageMB / maxStorageMB) * 100, 100);
 
     return {
       totalConversations: convCount || 0,
@@ -255,17 +302,10 @@ export const getStorageStats = async () => {
       usedStorageBytes,
       usedStorageMB,
       maxStorageMB,
-      usagePercentage,
+      usagePercentage: Math.min((usedStorageMB / maxStorageMB) * 100, 100),
     };
   } catch (error) {
-    console.error('Error getting storage stats:', error);
-    return {
-      totalConversations: 0,
-      totalMessages: 0,
-      usedStorageBytes: 0,
-      usedStorageMB: 0,
-      maxStorageMB: 100,
-      usagePercentage: 0,
-    };
+    console.error('[getStorageStats] Error:', error);
+    return defaultStats;
   }
 };

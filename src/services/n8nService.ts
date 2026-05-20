@@ -1,16 +1,110 @@
 const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook/AIsyrfBolt';
 
-export const sendMessageToWebhook = async (message: string): Promise<string> => {
+interface AttachmentPayload {
+  name: string;
+  type: string;
+  size: number;
+  data: string;
+}
+
+interface WebhookPayload {
+  question: string;
+  attachments?: AttachmentPayload[];
+}
+
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]);
+    };
+    reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
+export interface UploadedFile {
+  id: string;
+  file: File;
+  previewUrl?: string;
+  type: 'image' | 'file';
+}
+
+const extractTextFromResponse = (data: any): string | null => {
+  if (!data) return null;
+
+  // Format 1: [{ output: "..." }] — AI Agent biasa
+  if (Array.isArray(data) && data.length > 0 && data[0] !== null) {
+    const first = data[0];
+    if ('output' in first && first.output) return first.output;
+    if ('text' in first && first.text) return first.text;
+    if ('message' in first && first.message) return first.message;
+    if ('response' in first && first.response) return first.response;
+    if ('answer' in first && first.answer) return first.answer;
+    if ('content' in first && first.content) return first.content;
+
+    // Format: [{ parts: [{ text: "..." }] }] — Gemini parts array
+    if ('parts' in first && Array.isArray(first.parts)) {
+      const text = first.parts.map((p: any) => p.text || '').join('');
+      if (text) return text;
+    }
+
+    if (typeof first === 'string') return first;
+  }
+
+  // Format 2: { parts: [{ text: "..." }] } — Gemini content object langsung
+  if (typeof data === 'object' && !Array.isArray(data)) {
+    // { parts: [{ text: "..." }] }
+    if (data.parts && Array.isArray(data.parts)) {
+      const text = data.parts.map((p: any) => p.text || '').join('');
+      if (text) return text;
+    }
+
+    // { candidates: [{ content: { parts: [{ text }] } }] } — Gemini full response
+    if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return data.candidates[0].content.parts[0].text;
+    }
+
+    if (data.output) return data.output;
+    if (data.text) return data.text;
+    if (data.message) return data.message;
+    if (data.response) return data.response;
+    if (data.answer) return data.answer;
+    if (data.content) return data.content;
+  }
+
+  // Format 3: plain string
+  if (typeof data === 'string' && data.trim()) return data.trim();
+
+  return null;
+};
+
+export const sendMessageToWebhook = async (
+  message: string,
+  attachments?: UploadedFile[]
+): Promise<string> => {
   try {
+    const payload: WebhookPayload = { question: message };
+
+    if (attachments && attachments.length > 0) {
+      const attachmentPayloads: AttachmentPayload[] = await Promise.all(
+        attachments.map(async (uf) => ({
+          name: uf.file.name,
+          type: uf.file.type,
+          size: uf.file.size,
+          data: await fileToBase64(uf.file),
+        }))
+      );
+      payload.attachments = attachmentPayloads;
+    }
+
     const response = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // This header is crucial for bypassing the ngrok browser warning page,
-        // which can cause "Failed to fetch" errors in programmatic clients.
         'ngrok-skip-browser-warning': 'true',
       },
-      body: JSON.stringify({ question: message }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -19,32 +113,19 @@ export const sendMessageToWebhook = async (message: string): Promise<string> => 
     }
 
     const responseText = await response.text();
-    
-    // This handles the "Unexpected end of JSON input" error by checking for an empty response.
+
     if (!responseText) {
-      return "The AI returned an empty response. This might happen if the webhook is not configured to send a response body. Please check your n8n workflow.";
+      return "The AI returned an empty response. Please check your n8n workflow.";
     }
 
     try {
-      // First, try to parse the response as JSON.
       const data = JSON.parse(responseText);
-      
-      // The new webhook format returns an array with an object inside.
-      // e.g., [{"output": "Hello! ..."}]
-      if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && data[0] !== null && 'output' in data[0]) {
-        return data[0].output || "The AI response was empty.";
-      }
+      const extracted = extractTextFromResponse(data);
+      if (extracted) return extracted;
 
-      // Fallback for a previous format for compatibility (e.g., { "answer": "..." }).
-      if (data.answer) {
-        return data.answer;
-      }
-      
-      // If the format is completely unexpected.
-      return "I received a response, but the format was unexpected. Please check the n8n workflow output.";
-    } catch (e) {
-      // If parsing as JSON fails, the webhook might have returned plain text.
-      // This makes the app more resilient.
+      console.warn('Unexpected response format:', JSON.stringify(data, null, 2));
+      return responseText;
+    } catch {
       return responseText;
     }
 
@@ -52,7 +133,7 @@ export const sendMessageToWebhook = async (message: string): Promise<string> => 
     console.error("Error sending message to webhook:", error);
     if (error instanceof Error) {
       if (error.message.includes('Failed to fetch')) {
-          return "A network error occurred. This could be a CORS issue, or the webhook server is down. Please check that the ngrok tunnel is active and the n8n workflow is running.";
+        return "A network error occurred. This could be a CORS issue, or the webhook server is down.";
       }
       return `Failed to send message: ${error.message}`;
     }
