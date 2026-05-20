@@ -523,7 +523,7 @@ function App() {
       />
 
       {/* ── Update modal ──────────────────────────────────── */}
-      <UpdateModal version="4.2.2" updateDate="November 2025" />
+      <UpdateModal version="4.5.1" updateDate="May 2026" />
 
       {/* ── Sidebar ───────────────────────────────────────── */}
       <Sidebar
