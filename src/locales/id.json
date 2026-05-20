@@ -144,7 +144,6 @@
   "updateTableExport": "Ekspor Tabel ke Excel",
   "updateTableExportDescription": "Unduh tabel yang dihasilkan AI langsung ke file Excel dengan satu klik",
   "tip": "Tips",
-  "updateTip": "Coba minta saya untuk membuat contoh kode interaktif dan buka di canvas untuk pengalaman yang lebih baik!",
   "dontShowAgain": "Jangan tampilkan lagi",
   "gotIt": "Mengerti",
   "heroSubtitle": "Asisten AI untuk pemecah masalah. Tulis, debug, dan belajar dengan pendamping coding cerdas Anda.",
@@ -284,5 +283,8 @@
   "alreadyUsed": "Sudah digunakan",
   "expiredOn": "Kedaluwarsa pada",
   "limitTime": "Penawaran Waktu Terbatas!",
-  "get7": " Dapatkan akses gratis 7 hari dengan kode"
+  "get7": " Dapatkan akses gratis 7 hari dengan kode",
+  "updateAttachments": "Lampiran Gambar & Dokumen",
+"updateAttachmentsDescription": "Kirim gambar dan dokumen langsung di chat — AI akan menganalisis dan merespons file Anda",
+"updateTip": "Coba kirim gambar atau dokumen, atau minta saya membuat kode interaktif dan buka di canvas!"
 }

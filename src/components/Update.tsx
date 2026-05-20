@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiX, FiCheck, FiZap, FiCode, FiMaximize2, FiDownload } from 'react-icons/fi';
+import { FiX, FiCheck, FiZap, FiCode, FiMaximize2, FiDownload, FiPaperclip } from 'react-icons/fi';
 import { useLocalization } from '../contexts/LocalizationContext';
 import logo from './images/icon.png';
 
@@ -36,23 +36,28 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ version, updateDate })
 
   if (!isOpen) return null;
 
-  const updates = [
-    {
-      icon: <FiMaximize2 className="text-blue-400" size={18} />,
-      title: t('updateCanvasFeature') || 'Interactive Canvas',
-      description: t('updateCanvasDescription') || 'Open code in a resizable canvas with live preview and code execution'
-    },
-    {
-      icon: <FiCode className="text-green-400" size={18} />,
-      title: t('updateCodeExecution') || 'Multi-Language Code Execution',
-      description: t('updateCodeExecutionDescription') || 'Run Python, C++, Java, JavaScript, and 10+ more languages directly in the browser'
-    },
-    {
-      icon: <FiDownload className="text-purple-400" size={18} />,
-      title: t('updateTableExport') || 'Table Export to Excel',
-      description: t('updateTableExportDescription') || 'Download AI-generated tables directly to Excel files with one click'
-    },
-  ];
+const updates = [
+  {
+    icon: <FiPaperclip className="text-yellow-400" size={18} />,
+    title: t('updateAttachments') || 'Image & Document Attachments',
+    description: t('updateAttachmentsDescription') || 'Send images and documents directly in chat — AI will analyze and respond to your files'
+  },
+  {
+    icon: <FiMaximize2 className="text-blue-400" size={18} />,
+    title: t('updateCanvasFeature') || 'Interactive Canvas',
+    description: t('updateCanvasDescription') || 'Open code in a resizable canvas with live preview and code execution'
+  },
+  {
+    icon: <FiCode className="text-green-400" size={18} />,
+    title: t('updateCodeExecution') || 'Multi-Language Code Execution',
+    description: t('updateCodeExecutionDescription') || 'Run Python, C++, Java, JavaScript, and 10+ more languages directly in the browser'
+  },
+  {
+    icon: <FiDownload className="text-purple-400" size={18} />,
+    title: t('updateTableExport') || 'Table Export to Excel',
+    description: t('updateTableExportDescription') || 'Download AI-generated tables directly to Excel files with one click'
+  },
+];
 
   return (
     <>

@@ -144,7 +144,6 @@
   "updateTableExport": "Table Export to Excel",
   "updateTableExportDescription": "Download AI-generated tables directly to Excel files with one click",
   "tip": "Tip",
-  "updateTip": "Try asking me to create interactive code examples and open them in the canvas for a better experience!",
   "dontShowAgain": "Don't show this again",
   "gotIt": "Got it",
   "heroSubtitle": "The AI assistant for problem solvers. Write, debug, and learn with your intelligent coding companion.",
@@ -284,5 +283,8 @@
   "alreadyUsed": "Already Used",
   "expiredOn": "Expired on",
   "limitTime": "Limited Time Offer!",
-  "get7": " Get 7 days free access with code"
+  "get7": " Get 7 days free access with code",
+  "updateAttachments": "Image & Document Attachments",
+"updateAttachmentsDescription": "Send images and documents directly in chat — AI will analyze and respond to your files",
+"updateTip": "Try sending an image or document, or ask me to create interactive code and open it in the canvas!"
 }

@@ -1,4 +1,4 @@
-const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook-test/AIsyrfBolt';
+const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook/AIsyrfBolt';
 
 interface AttachmentPayload {
   name: string;
