@@ -159,13 +159,56 @@ const parseAiResponse = (rawText: any) => {
 
   blocks.sort((a, b) => a.start - b.start);
 
-  const cleanText = (raw: string) =>
-    raw
-      .replace(/^(#+)\s/gm, '')
-      .replace(/\*\*/g, '')
-      .replace(/`/g, '')
-      .replace(/^\s*[-*]\s/gm, '• ')
-      .trim();
+const cleanText = (raw: string) =>
+  raw
+    // Hapus heading markdown (##, ###, dll)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Hapus bold/italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    // Hapus inline code backtick
+    .replace(/`([^`]+)`/g, '$1')
+    // Hapus LaTeX inline: $...$ dan \(...\)
+    .replace(/\\\((.+?)\\\)/g, '$1')
+    .replace(/\$([^$]+)\$/g, '$1')
+    // Hapus LaTeX block: $$...$$ dan \[...\]
+    .replace(/\$\$[\s\S]+?\$\$/g, '')
+    .replace(/\\\[[\s\S]+?\\\]/g, '')
+    // Konversi arrow LaTeX → teks biasa
+    .replace(/\\rightarrow/g, '→')
+    .replace(/\\leftarrow/g, '←')
+    .replace(/\\Rightarrow/g, '⇒')
+    .replace(/\\Leftarrow/g, '⇐')
+    .replace(/\\leftrightarrow/g, '↔')
+    .replace(/\\to\b/g, '→')
+    // Simbol LaTeX umum lainnya
+    .replace(/\\cdot/g, '·')
+    .replace(/\\times/g, '×')
+    .replace(/\\div/g, '÷')
+    .replace(/\\pm/g, '±')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\neq/g, '≠')
+    .replace(/\\leq/g, '≤')
+    .replace(/\\geq/g, '≥')
+    .replace(/\\infty/g, '∞')
+    .replace(/\\sqrt\{(.+?)\}/g, '√$1')
+    .replace(/\\frac\{(.+?)\}\{(.+?)\}/g, '$1/$2')
+    // Hapus backslash sisa lainnya
+    .replace(/\\[a-zA-Z]+/g, '')
+    // Hapus bullet list markdown
+    .replace(/^\s*[-*+]\s/gm, '• ')
+    // Hapus ordered list markdown (1. 2. dst)
+    .replace(/^\s*\d+\.\s/gm, '')
+    // Hapus blockquote
+    .replace(/^>\s/gm, '')
+    // Hapus horizontal rule
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    // Bersihkan spasi berlebih
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   let cursor = 0;
   for (const block of blocks) {
