@@ -84,11 +84,11 @@ function App() {
 
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
-    });
+     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setIsAuthenticated(!!session);
+  });
 
-    return () => subscription.unsubscribe();
+  return () => subscription.unsubscribe();
   }, []);
 
   // ─────────────────────────────────────────────────────────────
