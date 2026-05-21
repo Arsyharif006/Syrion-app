@@ -53,7 +53,7 @@ export const AboutSettings: React.FC = () => {
     <div className="p-6 bg-gray-800 border border-gray-700 rounded-lg">
       <h3 className="text-lg font-semibold text-white">{t('aboutTitle', { appName: t('appName') })}</h3>
       <p className="text-sm text-gray-400 mt-4">{t('aboutDescription')}</p>
-      <p className="text-xs text-gray-500 mt-4">{t('aboutVersion')}: 4.2.2</p>
+      <p className="text-xs text-gray-500 mt-4">{t('aboutVersion')}: 4.5.1</p>
       
       {isLoadingProfile ? (
         <div className="mt-6 p-4 bg-gray-900 rounded-lg border border-gray-700/50">
@@ -98,8 +98,8 @@ export const AboutSettings: React.FC = () => {
         <div className="mt-2 space-y-2 text-sm">
           <div className="flex items-center gap-2">
             <span className="w-20 text-gray-400">{t('instagram')}</span>
-            <a href="https://www.instagram.com/yaseo.n" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-              @yaseo.n
+            <a href="https://www.instagram.com/yaaoo.4" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+              @yaaoo.4
             </a>
           </div>
           <div className="flex items-center gap-2">

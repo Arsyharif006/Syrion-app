@@ -658,34 +658,35 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           </div>
 
           {/* Action buttons */}
-          {!isEditingLocal && !shouldHideButtons && (
-            <div className="flex text-xs md:mr-10">
-              <button
-                onClick={() => onResendMessage(messageText)}
-                disabled={anyEditingActive}
-                className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${
-                  anyEditingActive
-                    ? 'opacity-40 cursor-not-allowed text-gray-500'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                }`}
-                title={t('running')}
-              >
-                <FiRefreshCw size={13} />
-              </button>
-              <button
-                onClick={startEditing}
-                disabled={anyEditingActive}
-                className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${
-                  anyEditingActive
-                    ? 'opacity-40 cursor-not-allowed text-gray-500'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                }`}
-                title={t('editingNote')}
-              >
-                <FiEdit3 size={13} />
-              </button>
-            </div>
-          )}
+   {/* Action buttons */}
+{!isEditingLocal && !shouldHideButtons && !hasAttachments && (
+  <div className="flex text-xs md:mr-10">
+    <button
+      onClick={() => onResendMessage(messageText)}
+      disabled={anyEditingActive}
+      className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${
+        anyEditingActive
+          ? 'opacity-40 cursor-not-allowed text-gray-500'
+          : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+      }`}
+      title={t('running')}
+    >
+      <FiRefreshCw size={13} />
+    </button>
+    <button
+      onClick={startEditing}
+      disabled={anyEditingActive}
+      className={`flex items-center px-2.5 py-1.5 rounded-lg transition ${
+        anyEditingActive
+          ? 'opacity-40 cursor-not-allowed text-gray-500'
+          : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+      }`}
+      title={t('editingNote')}
+    >
+      <FiEdit3 size={13} />
+    </button>
+  </div>
+)}
         </div>
 
         {/* Code block expand modal */}
