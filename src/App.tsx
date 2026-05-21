@@ -288,185 +288,187 @@ function App() {
     );
   }, []);
 
-  const handleSendMessage = useCallback(
-    async (text: string, attachments?: UploadedFile[]) => {
-      // ── Rate limit check ──────────────────────────────────
-      try {
-        const limitInfo = await checkRateLimit();
-        setRateLimitInfo(limitInfo);
-        if (limitInfo.isLimited) return;
-      } catch (error) {
-        console.error('[App] Rate limit check failed:', error);
-        return;
-      }
+const handleSendMessage = useCallback(
+  async (text: string, attachments?: UploadedFile[]) => {
+    try {
+      const limitInfo = await checkRateLimit();
+      setRateLimitInfo(limitInfo);
+      if (limitInfo.isLimited) return;
+    } catch (error) {
+      console.error('[App] Rate limit check failed:', error);
+      return;
+    }
 
-      setIsLoading(true);
+    setIsLoading(true);
 
-      // ── Resolve / create conversation ─────────────────────
-      const conversationId = activeConversationId ?? crypto.randomUUID();
-      const isNewConversation = !activeConversation;
+    const conversationId = activeConversationId ?? crypto.randomUUID();
+    const isNewConversation = !activeConversation;
 
-      let currentConversation: Conversation = activeConversation ?? {
-        id: conversationId,
-        title: text.substring(0, 30) + (text.length > 30 ? '...' : ''),
-        messages: [],
-        createdAt: new Date().toISOString(),
-      };
+    // ── Ambil sessionId ───────────────────────────────────
+    const { data: { user } } = await supabase.auth.getUser();
+    const sessionId = user?.id ?? 'anonymous';
 
-      if (isNewConversation) setActiveConversationId(conversationId);
+    let currentConversation: Conversation = activeConversation ?? {
+      id: conversationId,
+      title: text.substring(0, 30) + (text.length > 30 ? '...' : ''),
+      messages: [],
+      createdAt: new Date().toISOString(),
+    };
 
-      // ── Upload attachments ────────────────────────────────
-      const storedAttachments =
-        attachments?.length
-          ? await prepareAttachments(attachments, conversationId)
-          : undefined;
+    if (isNewConversation) setActiveConversationId(conversationId);
 
-      // ── Optimistic UI update ──────────────────────────────
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        text,
-        sender: MessageSender.User,
-        attachments: storedAttachments,
-      };
+    const storedAttachments =
+      attachments?.length
+        ? await prepareAttachments(attachments, conversationId)
+        : undefined;
 
-      const aiLoadingMessage: Message = {
-        id: crypto.randomUUID(),
-        text: '...',
-        sender: MessageSender.AI,
-      };
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      text,
+      sender: MessageSender.User,
+      attachments: storedAttachments,
+    };
 
-      const optimisticMessages = [
-        ...currentConversation.messages,
-        userMessage,
-        aiLoadingMessage,
-      ];
+    const aiLoadingMessage: Message = {
+      id: crypto.randomUUID(),
+      text: '...',
+      sender: MessageSender.AI,
+    };
 
-      setConversations((prev) => {
-        const exists = prev.find((c) => c.id === conversationId);
-        if (exists) {
-          return prev.map((c) =>
-            c.id === conversationId ? { ...c, messages: optimisticMessages } : c
-          );
-        }
-        return [{ ...currentConversation, messages: optimisticMessages }, ...prev];
-      });
+    const optimisticMessages = [
+      ...currentConversation.messages,
+      userMessage,
+      aiLoadingMessage,
+    ];
 
-      // ── Fetch AI response ─────────────────────────────────
-      try {
-        const aiResponseText = await sendMessageToWebhook(text, attachments);
-
-        await incrementMessageCount();
-        const updatedLimit = await getRateLimitStatus();
-        setRateLimitInfo(updatedLimit);
-
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id !== conversationId) return c;
-
-            const finalMessages = c.messages.map((m) =>
-              m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
-            );
-            const finalConversation = { ...c, messages: finalMessages };
-            persistConversation(finalConversation);
-            return finalConversation;
-          })
+    setConversations((prev) => {
+      const exists = prev.find((c) => c.id === conversationId);
+      if (exists) {
+        return prev.map((c) =>
+          c.id === conversationId ? { ...c, messages: optimisticMessages } : c
         );
-      } catch (error) {
-        console.error('[App] Error sending message:', error);
-        // Rollback loading bubble on error
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id !== conversationId) return c;
-            return {
-              ...c,
-              messages: c.messages.filter((m) => m.id !== aiLoadingMessage.id),
-            };
-          })
-        );
-      } finally {
-        setIsLoading(false);
       }
-    },
-    [activeConversation, activeConversationId, prepareAttachments, persistConversation]
-  );
+      return [{ ...currentConversation, messages: optimisticMessages }, ...prev];
+    });
 
-  const handleEditMessage = useCallback(
-    async (messageId: string, newText: string) => {
-      // ── Rate limit check ──────────────────────────────────
-      try {
-        const limitInfo = await checkRateLimit();
-        setRateLimitInfo(limitInfo);
-        if (limitInfo.isLimited) return;
-      } catch (error) {
-        console.error('[App] Rate limit check failed:', error);
-        return;
-      }
+    try {
+      // ── Pass sessionId ────────────────────────────────────
+      const aiResponseText = await sendMessageToWebhook(text, attachments, sessionId);
 
-      const conversationId = activeConversationId;
-      if (!conversationId || !activeConversation) return;
-
-      const messageIndex = activeConversation.messages.findIndex(
-        (m) => m.id === messageId
-      );
-      if (messageIndex === -1) return;
-
-      const truncatedMessages = activeConversation.messages.slice(0, messageIndex);
-
-      const editedUserMessage: Message = {
-        id: messageId,
-        text: newText,
-        sender: MessageSender.User,
-      };
-
-      const aiLoadingMessage: Message = {
-        id: crypto.randomUUID(),
-        text: '...',
-        sender: MessageSender.AI,
-      };
-
-      const optimisticMessages = [...truncatedMessages, editedUserMessage, aiLoadingMessage];
-      const previousConversations = conversations;
+      await incrementMessageCount();
+      const updatedLimit = await getRateLimitStatus();
+      setRateLimitInfo(updatedLimit);
 
       setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId ? { ...c, messages: optimisticMessages } : c
-        )
+        prev.map((c) => {
+          if (c.id !== conversationId) return c;
+          const finalMessages = c.messages.map((m) =>
+            m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
+          );
+          const finalConversation = { ...c, messages: finalMessages };
+          persistConversation(finalConversation);
+          return finalConversation;
+        })
       );
-      setIsLoading(true);
+    } catch (error) {
+      console.error('[App] Error sending message:', error);
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== conversationId) return c;
+          return {
+            ...c,
+            messages: c.messages.filter((m) => m.id !== aiLoadingMessage.id),
+          };
+        })
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [activeConversation, activeConversationId, prepareAttachments, persistConversation]
+);
 
-      try {
-        const aiResponseText = await sendMessageToWebhook(newText);
+const handleEditMessage = useCallback(
+  async (messageId: string, newText: string) => {
+    try {
+      const limitInfo = await checkRateLimit();
+      setRateLimitInfo(limitInfo);
+      if (limitInfo.isLimited) return;
+    } catch (error) {
+      console.error('[App] Rate limit check failed:', error);
+      return;
+    }
 
-        await incrementMessageCount();
-        const updatedLimit = await getRateLimitStatus();
-        setRateLimitInfo(updatedLimit);
+    const conversationId = activeConversationId;
+    if (!conversationId || !activeConversation) return;
 
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id !== conversationId) return c;
+    const messageIndex = activeConversation.messages.findIndex(
+      (m) => m.id === messageId
+    );
+    if (messageIndex === -1) return;
 
-            const finalMessages = c.messages.map((m) =>
-              m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
-            );
-            const finalConversation = { ...c, messages: finalMessages };
-            persistConversation(finalConversation);
-            return finalConversation;
-          })
-        );
-      } catch (error) {
-        console.error('[App] Error editing message:', error);
-        setConversations(previousConversations);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [activeConversationId, activeConversation, conversations, persistConversation]
-  );
+    // ── Ambil sessionId ───────────────────────────────────
+    const { data: { user } } = await supabase.auth.getUser();
+    const sessionId = user?.id ?? 'anonymous';
 
-  const handleResendMessage = useCallback(
-    (text: string) => handleSendMessage(text),
-    [handleSendMessage]
-  );
+    const truncatedMessages = activeConversation.messages.slice(0, messageIndex);
+
+    const editedUserMessage: Message = {
+      id: messageId,
+      text: newText,
+      sender: MessageSender.User,
+    };
+
+    const aiLoadingMessage: Message = {
+      id: crypto.randomUUID(),
+      text: '...',
+      sender: MessageSender.AI,
+    };
+
+    const optimisticMessages = [...truncatedMessages, editedUserMessage, aiLoadingMessage];
+    const previousConversations = conversations;
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === conversationId ? { ...c, messages: optimisticMessages } : c
+      )
+    );
+    setIsLoading(true);
+
+    try {
+      // ── Pass sessionId ────────────────────────────────────
+      const aiResponseText = await sendMessageToWebhook(newText, undefined, sessionId);
+
+      await incrementMessageCount();
+      const updatedLimit = await getRateLimitStatus();
+      setRateLimitInfo(updatedLimit);
+
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.id !== conversationId) return c;
+          const finalMessages = c.messages.map((m) =>
+            m.id === aiLoadingMessage.id ? { ...m, text: aiResponseText } : m
+          );
+          const finalConversation = { ...c, messages: finalMessages };
+          persistConversation(finalConversation);
+          return finalConversation;
+        })
+      );
+    } catch (error) {
+      console.error('[App] Error editing message:', error);
+      setConversations(previousConversations);
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [activeConversationId, activeConversation, conversations, persistConversation]
+);
+
+// ── handleResendMessage otomatis ikut sessionId dari handleSendMessage ──
+const handleResendMessage = useCallback(
+  (text: string) => handleSendMessage(text),
+  [handleSendMessage]
+);
 
   const handlePromptClick = useCallback(
     (prompt: string) => handleSendMessage(prompt),

@@ -1,4 +1,4 @@
-const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook/AIsyrfBolt';
+const WEBHOOK_URL = 'https://submiss-christena-repeatable.ngrok-free.dev/webhook-test/AIsyrfBolt';
 
 interface AttachmentPayload {
   name: string;
@@ -9,6 +9,7 @@ interface AttachmentPayload {
 
 interface WebhookPayload {
   question: string;
+   session_id: string;  
   attachments?: AttachmentPayload[];
 }
 
@@ -86,11 +87,13 @@ const buildQuestionWithContext = (message: string, attachments?: UploadedFile[])
 
 export const sendMessageToWebhook = async (
   message: string,
-  attachments?: UploadedFile[]
+  attachments?: UploadedFile[],
+  sessionId?: string
 ): Promise<string> => {
   try {
     const payload: WebhookPayload = {
       question: buildQuestionWithContext(message, attachments),
+      session_id: sessionId ?? 'anonymous', 
     };
 
     if (attachments && attachments.length > 0) {
